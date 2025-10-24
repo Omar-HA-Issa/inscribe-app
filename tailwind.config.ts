@@ -48,6 +48,9 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
         chart: {
+          cyan: "hsl(var(--chart-cyan))",
+          azure: "hsl(var(--chart-azure))",
+          magenta: "hsl(var(--chart-magenta))",
           light: "hsl(var(--chart-light))",
           mid: "hsl(var(--chart-mid))",
           dark: "hsl(var(--chart-dark))",

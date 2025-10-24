@@ -38,10 +38,13 @@ All colors MUST be HSL.
     --accent: 0 0% 83%; /* #D3D3D3 soft light grey */
     --accent-foreground: 240 6% 5%;
     
-    /* Chart Greyscale Colors */
-    --chart-light: 0 0% 88%; /* #E0E0E0 */
-    --chart-mid: 0 0% 75%; /* #BFBFBF */
-    --chart-dark: 0 0% 48%; /* #7A7A7A */
+    /* Chart Vibrant Colors - Only for Data Visualization */
+    --chart-cyan: 162 69% 57%; /* #44E1B2 */
+    --chart-azure: 207 100% 60%; /* #339CFF */
+    --chart-magenta: 269 78% 68%; /* #B65DFF */
+    --chart-light: 0 0% 88%; /* #E0E0E0 - for greyscale elements */
+    --chart-mid: 0 0% 75%; /* #BFBFBF - for greyscale elements */
+    --chart-dark: 0 0% 48%; /* #7A7A7A - for greyscale elements */
     
     /* Destructive */
     --destructive: 0 0% 60%;

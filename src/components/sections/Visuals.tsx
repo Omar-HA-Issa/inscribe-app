@@ -16,7 +16,7 @@ const segmentData = [
   { segment: "Other", value: 10 },
 ];
 
-const COLORS = ["hsl(var(--chart-light))", "hsl(var(--chart-mid))", "hsl(var(--chart-dark))", "hsl(var(--muted))"];
+const COLORS = ["hsl(var(--chart-cyan))", "hsl(var(--chart-azure))", "hsl(var(--chart-magenta))", "hsl(var(--chart-mid))"];
 
 export const Visuals = () => {
   return (
@@ -51,8 +51,8 @@ export const Visuals = () => {
               />
               <defs>
                 <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="hsl(var(--chart-mid))" />
-                  <stop offset="100%" stopColor="hsl(var(--chart-light))" />
+                  <stop offset="0%" stopColor="hsl(var(--chart-cyan))" />
+                  <stop offset="100%" stopColor="hsl(var(--chart-azure))" />
                 </linearGradient>
               </defs>
               <Line 
@@ -60,7 +60,7 @@ export const Visuals = () => {
                 dataKey="value" 
                 stroke="url(#lineGradient)" 
                 strokeWidth={2.5}
-                dot={{ fill: "hsl(var(--chart-light))", r: 4 }}
+                dot={{ fill: "hsl(var(--chart-azure))", r: 4 }}
                 animationDuration={800}
               />
             </LineChart>
@@ -133,8 +133,8 @@ export const Visuals = () => {
               />
               <defs>
                 <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(var(--chart-light))" />
-                  <stop offset="100%" stopColor="hsl(var(--chart-mid))" />
+                  <stop offset="0%" stopColor="hsl(var(--chart-magenta))" />
+                  <stop offset="100%" stopColor="hsl(var(--chart-azure))" />
                 </linearGradient>
               </defs>
               <Bar 
