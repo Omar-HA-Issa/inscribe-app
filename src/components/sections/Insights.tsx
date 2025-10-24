@@ -35,30 +35,33 @@ export const Insights = () => {
           return (
             <div
               key={i}
-              className="bg-card rounded-xl p-6 shadow-card hover:shadow-hover hover:scale-[1.02] transition-all"
+              className="bg-card rounded-xl p-6 shadow-card hover:shadow-hover hover:scale-[1.01] transition-all"
             >
               <div className="flex items-start gap-4">
-                <div className="p-3 bg-accent/10 rounded-lg">
-                  <Icon className="w-6 h-6 text-accent" />
+                <div className="p-3 bg-muted rounded-lg">
+                  <Icon className="w-6 h-6 text-foreground" />
                 </div>
                 
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-lg font-semibold">{insight.title}</h3>
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full ${
-                        insight.confidence === "High"
-                          ? "bg-accent/20 text-accent"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {insight.confidence} Confidence
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className={`w-2 h-2 rounded-full ${
+                          insight.confidence === "High"
+                            ? "bg-foreground"
+                            : "bg-chart-mid"
+                        }`}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {insight.confidence}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
                     {insight.description}
                   </p>
-                  <button className="mt-4 text-sm text-accent hover:text-accent/80 transition-colors">
+                  <button className="mt-4 text-sm text-accent hover:text-foreground hover:shadow-glow transition-all">
                     View Evidence →
                   </button>
                 </div>

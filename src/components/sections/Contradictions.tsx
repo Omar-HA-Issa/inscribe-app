@@ -35,7 +35,7 @@ export const Contradictions = () => {
       <div className="space-y-6">
         <div>
           <h3 className="text-xl font-medium mb-4 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-destructive" />
+            <AlertTriangle className="w-5 h-5 text-muted-foreground" />
             Contradictions
           </h3>
           <div className="space-y-3">
@@ -50,7 +50,7 @@ export const Contradictions = () => {
                   </span>
                   <p className="text-foreground">{item.claim}</p>
                 </div>
-                <div className="space-y-2 border-l border-border pl-4">
+                <div className="space-y-2 pl-4" style={{ boxShadow: 'inset 4px 0 0 rgba(255,255,255,0.06)' }}>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground uppercase tracking-wider">
                       Evidence
@@ -58,8 +58,8 @@ export const Contradictions = () => {
                     <span
                       className={`text-xs px-2 py-1 rounded ${
                         item.severity === "high"
-                          ? "bg-destructive/20 text-destructive"
-                          : "bg-muted text-muted-foreground"
+                          ? "bg-muted text-foreground"
+                          : "bg-muted text-chart-mid"
                       }`}
                     >
                       {item.severity}
@@ -78,10 +78,10 @@ export const Contradictions = () => {
             {gaps.map((gap, i) => (
               <div
                 key={i}
-                className="p-6 bg-card rounded-xl shadow-card hover:bg-card/80 transition-all"
+                className="p-6 bg-card rounded-xl shadow-card hover:shadow-hover transition-all"
               >
                 <div className="flex items-start gap-4">
-                  <div className="w-2 h-2 mt-2 rounded-full bg-muted-foreground" />
+                  <div className="w-2 h-2 mt-2 rounded-full bg-chart-mid" />
                   <div className="flex-1">
                     <h4 className="font-semibold mb-1">{gap.area}</h4>
                     <p className="text-muted-foreground text-sm">{gap.description}</p>

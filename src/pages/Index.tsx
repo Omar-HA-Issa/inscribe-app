@@ -53,7 +53,7 @@ const Index = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4 animate-fade-in">
-          <div className="w-16 h-16 mx-auto border-4 border-accent border-t-transparent rounded-full animate-spin" />
+          <div className="w-16 h-16 mx-auto border-4 border-chart-mid border-t-transparent rounded-full animate-spin" />
           <div>
             <p className="text-xl font-semibold">Analyzing document...</p>
             <p className="text-muted-foreground">This may take a few moments</p>

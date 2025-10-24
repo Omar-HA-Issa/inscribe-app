@@ -8,7 +8,7 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* DocuMind Design System - Cinematic Analytical Theme */
+    /* DocuMind Design System - Greyscale Borderless Theme */
     
     /* Core Backgrounds - Deep Matte Blacks */
     --background: 240 6% 5%; /* #0D0D0F */
@@ -34,34 +34,35 @@ All colors MUST be HSL.
     --muted: 240 4% 10%;
     --muted-foreground: 210 3% 64%;
     
-    /* Accent - Reserved for Chart Colors */
-    --accent: 162 69% 57%; /* Cyan #44E1B2 */
+    /* Accent - Light Grey Highlight */
+    --accent: 0 0% 83%; /* #D3D3D3 soft light grey */
     --accent-foreground: 240 6% 5%;
     
-    /* Chart Accent Colors */
-    --chart-cyan: 162 69% 57%; /* #44E1B2 */
-    --chart-azure: 207 100% 60%; /* #339CFF */
-    --chart-magenta: 269 78% 68%; /* #B65DFF */
+    /* Chart Greyscale Colors */
+    --chart-light: 0 0% 88%; /* #E0E0E0 */
+    --chart-mid: 0 0% 75%; /* #BFBFBF */
+    --chart-dark: 0 0% 48%; /* #7A7A7A */
     
     /* Destructive */
-    --destructive: 0 84% 60%;
+    --destructive: 0 0% 60%;
     --destructive-foreground: 0 0% 91%;
     
     /* Borders - Hairline Subtle */
-    --border: 0 0% 100% / 0.05; /* rgba(255,255,255,0.05) */
+    --border: 0 0% 100% / 0.06; /* rgba(255,255,255,0.06) */
     --input: 240 4% 10%;
-    --ring: 162 69% 57%;
+    --ring: 0 0% 83%;
     
     /* Radius - Subtle Curves */
     --radius: 0.75rem;
     
-    /* Gradients for Depth */
+    /* Gradients for Depth - Pure Greyscale */
     --gradient-card: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 100%);
-    --gradient-active: linear-gradient(90deg, hsl(var(--chart-cyan)) 0%, hsl(var(--chart-magenta)) 100%);
+    --gradient-active: linear-gradient(90deg, rgba(191,191,191,1) 0%, rgba(255,255,255,1) 100%);
     
     /* Shadows for Borderless Depth */
-    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
-    --shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.5);
+    --shadow-card: 0 0 8px rgba(255, 255, 255, 0.04);
+    --shadow-hover: 0 0 12px rgba(255, 255, 255, 0.08);
+    --shadow-glow: 0 0 8px rgba(255, 255, 255, 0.15);
     
     /* Transitions */
     --transition-smooth: all 200ms ease-out;

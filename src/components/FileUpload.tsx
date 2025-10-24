@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Upload, FileText, Sparkles } from "lucide-react";
+import { Upload, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FileUploadProps {
@@ -46,10 +46,9 @@ export const FileUpload = ({ onFileSelect }: FileUploadProps) => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 animate-fade-in">
       <div className="text-center mb-12">
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <Sparkles className="w-8 h-8 text-accent animate-shimmer" />
-          <h1 className="text-5xl font-semibold tracking-tight">DocuMind</h1>
-        </div>
+        <h1 className="text-5xl font-semibold tracking-tight mb-4" style={{ textShadow: '0 0 12px rgba(211,211,211,0.3)' }}>
+          DocuMind
+        </h1>
         <p className="text-muted-foreground text-lg">
           Discover what your documents hide beneath the surface
         </p>
@@ -60,11 +59,11 @@ export const FileUpload = ({ onFileSelect }: FileUploadProps) => {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         className={cn(
-          "relative w-full max-w-2xl p-16 rounded-2xl border-2 border-dashed transition-all cursor-pointer",
+          "relative w-full max-w-2xl p-16 rounded-2xl transition-all cursor-pointer",
           "bg-card shadow-card hover:shadow-hover",
           isDragging
-            ? "border-accent bg-accent/5"
-            : "border-border hover:border-accent/50"
+            ? "shadow-glow"
+            : ""
         )}
       >
         <input
@@ -75,11 +74,11 @@ export const FileUpload = ({ onFileSelect }: FileUploadProps) => {
         />
         
         <div className="flex flex-col items-center gap-6">
-          <div className="p-6 rounded-full bg-accent/10">
+          <div className="p-6 rounded-full bg-muted">
             {isDragging ? (
-              <FileText className="w-12 h-12 text-accent" />
+              <FileText className="w-12 h-12 text-foreground" />
             ) : (
-              <Upload className="w-12 h-12 text-accent" />
+              <Upload className="w-12 h-12 text-foreground" />
             )}
           </div>
           

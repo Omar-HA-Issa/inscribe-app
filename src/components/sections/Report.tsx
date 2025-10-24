@@ -60,14 +60,14 @@ export const Report = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        <Button 
+        <button 
           onClick={handleDownload}
-          className="bg-accent hover:bg-accent/90 text-accent-foreground font-medium px-6 py-6 rounded-xl shadow-card hover:shadow-hover transition-all"
+          className="text-accent hover:text-foreground hover:shadow-glow font-medium px-6 py-3 rounded-xl bg-card shadow-card transition-all flex items-center gap-2"
         >
-          <Download className="w-4 h-4 mr-2" />
+          <Download className="w-4 h-4" />
           Download Full Report
-        </Button>
-        <button className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
+        </button>
+        <button className="text-muted-foreground hover:text-foreground hover:brightness-110 transition-all flex items-center gap-2">
           <Share2 className="w-4 h-4" />
           Share Link
         </button>

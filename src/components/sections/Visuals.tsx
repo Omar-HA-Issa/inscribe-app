@@ -16,7 +16,7 @@ const segmentData = [
   { segment: "Other", value: 10 },
 ];
 
-const COLORS = ["hsl(var(--chart-cyan))", "hsl(var(--chart-azure))", "hsl(var(--chart-magenta))", "hsl(var(--muted))"];
+const COLORS = ["hsl(var(--chart-light))", "hsl(var(--chart-mid))", "hsl(var(--chart-dark))", "hsl(var(--muted))"];
 
 export const Visuals = () => {
   return (
@@ -31,7 +31,7 @@ export const Visuals = () => {
           <h3 className="text-lg font-semibold mb-6">Revenue Trend</h3>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={revenueData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.04)" strokeOpacity={0.3} />
               <XAxis 
                 dataKey="month" 
                 stroke="hsl(var(--muted-foreground))"
@@ -44,16 +44,23 @@ export const Visuals = () => {
               <Tooltip
                 contentStyle={{
                   backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
+                  border: "none",
                   borderRadius: "8px",
+                  boxShadow: "var(--shadow-card)",
                 }}
               />
+              <defs>
+                <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="hsl(var(--chart-mid))" />
+                  <stop offset="100%" stopColor="hsl(var(--chart-light))" />
+                </linearGradient>
+              </defs>
               <Line 
                 type="monotone" 
                 dataKey="value" 
-                stroke="hsl(var(--chart-cyan))" 
-                strokeWidth={3}
-                dot={{ fill: "hsl(var(--chart-cyan))", r: 4 }}
+                stroke="url(#lineGradient)" 
+                strokeWidth={2.5}
+                dot={{ fill: "hsl(var(--chart-light))", r: 4 }}
                 animationDuration={800}
               />
             </LineChart>
@@ -81,8 +88,9 @@ export const Visuals = () => {
               <Tooltip
                 contentStyle={{
                   backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
+                  border: "none",
                   borderRadius: "8px",
+                  boxShadow: "var(--shadow-card)",
                 }}
               />
             </PieChart>
@@ -105,7 +113,7 @@ export const Visuals = () => {
           <h3 className="text-lg font-semibold mb-6">Quarterly Performance</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={revenueData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.04)" strokeOpacity={0.3} />
               <XAxis 
                 dataKey="month" 
                 stroke="hsl(var(--muted-foreground))"
@@ -118,13 +126,20 @@ export const Visuals = () => {
               <Tooltip
                 contentStyle={{
                   backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
+                  border: "none",
                   borderRadius: "8px",
+                  boxShadow: "var(--shadow-card)",
                 }}
               />
+              <defs>
+                <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(var(--chart-light))" />
+                  <stop offset="100%" stopColor="hsl(var(--chart-mid))" />
+                </linearGradient>
+              </defs>
               <Bar 
                 dataKey="value" 
-                fill="hsl(var(--chart-azure))"
+                fill="url(#barGradient)"
                 radius={[8, 8, 0, 0]}
                 animationDuration={800}
               />
