@@ -47,16 +47,22 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          primary: "hsl(var(--sidebar-primary))",
-          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-          accent: "hsl(var(--sidebar-accent))",
-          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
-          border: "hsl(var(--sidebar-border))",
-          ring: "hsl(var(--sidebar-ring))",
+        chart: {
+          cyan: "hsl(var(--chart-cyan))",
+          azure: "hsl(var(--chart-azure))",
+          magenta: "hsl(var(--chart-magenta))",
         },
+      },
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+      },
+      boxShadow: {
+        card: 'var(--shadow-card)',
+        hover: 'var(--shadow-hover)',
+      },
+      backgroundImage: {
+        'gradient-card': 'var(--gradient-card)',
+        'gradient-active': 'var(--gradient-active)',
       },
       borderRadius: {
         lg: "var(--radius)",
