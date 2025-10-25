@@ -20,7 +20,7 @@ export const Summary = () => {
             <span
               key={i}
               className={keywords.some(kw => word.toLowerCase().includes(kw.split(' ')[0])) 
-                ? "text-accent font-semibold" 
+                ? "text-chart-cyan font-semibold" 
                 : ""}
             >
               {word}{' '}
@@ -35,7 +35,7 @@ export const Summary = () => {
             key={i}
             className="bg-card rounded-lg p-4 text-center shadow-card hover:shadow-hover transition-all hover:scale-[1.01]"
           >
-            <span className="text-accent text-sm font-medium">{keyword}</span>
+            <span className="text-chart-cyan text-sm font-medium">{keyword}</span>
           </div>
         ))}
       </div>
