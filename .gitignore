@@ -9,8 +9,7 @@
 .env.local
 .env*.local
 **/.env
-**/.env.local
-frontend/.env.local
+frontend/.env
 backend/.env
 
 # ============================================
