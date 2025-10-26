@@ -1,10 +1,7 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import uploadRoutes from './routes/upload';
-
-// Load environment variables
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,7 +24,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API Routes - THIS WAS MISSING!
+// API Routes
 app.use('/api', uploadRoutes);
 
 // Test Supabase connection
@@ -79,8 +76,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Start server
 app.listen(PORT, () => {
-  console.log('🚀 DocuMind Backend started!');
-  console.log(`📡 Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
 
 export default app;
