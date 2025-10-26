@@ -1,73 +1,247 @@
-# Welcome to your Lovable project
+# DocuMind 🧠
 
-## Project info
+**AI-Powered Document Intelligence Platform**
 
-**URL**: https://lovable.dev/projects/7f1f279b-39fd-4d87-a725-8c5b8bf6b383
+> Discover what your documents hide beneath the surface
 
-## How can I edit this code?
+DocuMind is a RAG (Retrieval-Augmented Generation) powered document analysis platform that helps you upload, analyze, and chat with your documents using AI. Extract insights, detect patterns, and uncover hidden information across your document collection.
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## Project Overview
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/7f1f279b-39fd-4d87-a725-8c5b8bf6b383) and start prompting.
+**Status:** In Development - Phase 1 (MVP)  
+**Timeline:** 2-3 week sprint  
 
-Changes made via Lovable will be committed automatically to this repo.
+### What DocuMind Does:
 
-**Use your preferred IDE**
+- 📄 **Upload & Parse** - Support for PDF, TXT, and CSV files
+- 🤖 **AI Summarization** - Automatic document summaries and key insights
+- 💬 **Chat Interface** - Ask questions about your documents using natural language
+- 🔍 **Semantic Search** - Vector-based similarity search across all documents
+- 📊 **Smart Analytics** - Auto-detect patterns, trends, and contradictions
+- ⚠️ **Intelligent Alerts** - Get notified when new documents deviate from patterns
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+---
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Architecture
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│             │         │             │         │             │
+│  Frontend   │────────▶│   Backend   │────────▶│  Supabase   │
+│  (Vite +    │         │  (Express + │         │  (Postgres  │
+│   React)    │         │   Node.js)  │         │ + pgvector) │
+│             │         │             │         │             │
+└─────────────┘         └─────────────┘         └─────────────┘
+      │                       │                       │
+      │                       │                       │
+      ▼                       ▼                       ▼
+  User Interface        RAG Pipeline           Vector Storage
+                      + LangChain              + Embeddings
+                      + OpenAI
 ```
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Tech Stack
 
-**Use GitHub Codespaces**
+### Frontend
+- **Framework:** React 18 with TypeScript
+- **Build Tool:** Vite
+- **Styling:** Tailwind CSS
+- **UI Components:** shadcn/ui
+- **State Management:** React Hooks
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Backend
+- **Runtime:** Node.js (v18+)
+- **Framework:** Express.js
+- **Language:** TypeScript
+- **AI/ML:** LangChain, OpenAI API
+- **Document Parsing:** pdf-parse, mammoth
 
-## What technologies are used for this project?
+### Database & Storage
+- **Database:** Supabase (PostgreSQL)
+- **Vector Search:** pgvector extension
+- **File Storage:** Supabase Storage
+- **Embeddings:** OpenAI text-embedding-3-small
 
-This project is built with:
+---
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Getting Started
 
-## How can I deploy this project?
+### Prerequisites
 
-Simply open [Lovable](https://lovable.dev/projects/7f1f279b-39fd-4d87-a725-8c5b8bf6b383) and click on Share -> Publish.
+- Node.js 18+ and npm
+- Supabase account
+- OpenAI API key
 
-## Can I connect a custom domain to my Lovable project?
+### Installation
 
-Yes, you can!
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/docu-mind-app.git
+   cd docu-mind-app
+   ```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+2. **Install dependencies**
+   ```bash
+   npm run install:all
+   ```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+3. **Set up environment variables**
+
+   Create `backend/.env`:
+   ```bash
+   SUPABASE_URL=your_supabase_url
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+   OPENAI_API_KEY=your_openai_key
+   PORT=3001
+   FRONTEND_URL=http://localhost:5173
+   ```
+
+   Create `frontend/.env.local`:
+   ```bash
+   VITE_API_URL=http://localhost:3001
+   ```
+
+4. **Set up Supabase database**
+   - Run the SQL schema in `docs/schema.sql` (to be added)
+   - Enable pgvector extension
+   - Create storage bucket named `documents`
+
+5. **Start development servers**
+   ```bash
+   npm run dev
+   ```
+
+   - Frontend: http://localhost:5173
+   - Backend: http://localhost:3001
+
+---
+
+## Project Structure
+
+```
+docu-mind-app/
+├── backend/                 # Express.js backend
+│   ├── src/
+│   │   ├── routes/         # API routes (upload, chat, etc.)
+│   │   ├── services/       # Business logic (RAG, embeddings)
+│   │   ├── utils/          # Helper functions
+│   │   └── index.ts        # Entry point
+│   ├── .env                # Backend environment variables
+│   └── package.json
+│
+├── frontend/               # React + Vite frontend
+│   ├── src/
+│   │   ├── components/    # React components
+│   │   ├── lib/           # Utilities & API client
+│   │   ├── pages/         # Page components
+│   │   └── main.tsx       # Entry point
+│   ├── .env.local         # Frontend environment variables
+│   └── package.json
+│
+├── .gitignore
+├── package.json           # Root package.json (dev scripts)
+└── README.md
+```
+
+---
+
+## 🗓️ Development Roadmap
+
+### Phase 1 - MVP (Weeks 1-2)
+
+- [x] **Day 1:** Project setup & database schema 
+- [ ] **Day 2-3:** Document upload & parsing API
+- [ ] **Day 4-5:** Document chunking & embeddings
+- [ ] **Day 6-7:** Vector search & basic RAG
+- [ ] **Day 8-9:** Chat interface UI
+- [ ] **Day 10-11:** Summary generation
+- [ ] **Day 12-14:** Testing & polish
+
+### Phase 2 - Intelligence Layer (Weeks 3-4)
+
+- [ ] Auto-generated dashboards
+- [ ] Pattern detection & alerts
+- [ ] Contradiction detection
+- [ ] Advanced analytics
+- [ ] Multi-document comparison
+- [ ] Export & sharing features
+
+---
+
+## Features (Detailed)
+
+### Current (Phase 1)
+- ✅ Clean, professional UI with dark mode
+- ✅ Database infrastructure with vector search
+- ✅ Backend API foundation
+- 🚧 Document upload (PDF, TXT, CSV)
+- 🚧 AI-powered summarization
+- 🚧 Chat with documents using RAG
+
+### Planned (Phase 2)
+- 📊 Automated insight generation
+- ⚠️ Smart anomaly detection
+- 📈 Trend visualization
+- 🔔 Real-time alerts
+- 🤝 Collaborative features
+- 📤 Report generation & export
+
+---
+
+## Testing
+
+```bash
+# Backend tests (to be added)
+cd backend
+npm test
+
+# Frontend tests (to be added)
+cd frontend
+npm test
+
+# E2E tests (to be added)
+npm run test:e2e
+```
+
+---
+
+## Database Schema
+
+### Tables
+- **documents** - Uploaded file metadata
+- **document_chunks** - Text chunks with embeddings (vector)
+- **conversations** - Chat history
+- **messages** - Individual chat messages
+- **insights** - AI-generated insights
+
+See `docs/schema.sql` for full schema (to be added).
+
+---
+
+## License
+
+MIT License - see LICENSE file for details
+
+---
+
+## Acknowledgments
+
+- [LangChain](https://js.langchain.com/) - RAG framework
+- [OpenAI](https://openai.com/) - Embeddings & LLM
+- [Supabase](https://supabase.com/) - Database & backend infrastructure
+- [shadcn/ui](https://ui.shadcn.com/) - UI components
+- [Lovable](https://lovable.dev/) - Initial frontend scaffolding
+
+---
+
+## Screenshots
+
+*Coming soon - to be added once UI is complete*
+
+---
+
+**Built with ❤️ as a learning project to explore RAG, vector databases, and AI-powered document analysis.**
