@@ -1,26 +1,34 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-let supabaseInstance: SupabaseClient | null = null;
+let serviceClient: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {
-  if (supabaseInstance) {
-    return supabaseInstance;
-  }
+  if (serviceClient) return serviceClient;
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Missing Supabase environment variables');
-  }
+  if (!url || !key) throw new Error("Missing Supabase environment variables");
 
-  supabaseInstance = createClient(supabaseUrl, supabaseKey);
-  return supabaseInstance;
+  serviceClient = createClient(url, key, {
+    auth: { persistSession: false },
+  });
+
+  return serviceClient;
 }
 
-// For backward compatibility
+export function supabaseForUser(jwt: string): SupabaseClient {
+  const url = process.env.SUPABASE_URL;
+  if (!url) throw new Error("Missing SUPABASE_URL");
+
+  return createClient(url, "user-scope", {
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    auth: { persistSession: false },
+  });
+}
+
 export const supabase = new Proxy({} as SupabaseClient, {
-  get(target, prop) {
+  get(_target, prop) {
     return getSupabase()[prop as keyof SupabaseClient];
-  }
+  },
 });

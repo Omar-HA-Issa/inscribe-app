@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import uploadRoutes from './routes/upload';
+import searchRoutes from './routes/search';
+import chatRoutes from './routes/chat';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -26,6 +28,8 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api', uploadRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Test Supabase connection
 app.get('/api/test-db', async (req, res) => {

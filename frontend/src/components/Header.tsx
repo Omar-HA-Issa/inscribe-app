@@ -13,6 +13,7 @@ const tabs = [
   { id: "contradictions", label: "Contradictions" },
   { id: "visuals", label: "Visuals" },
   { id: "report", label: "Report" },
+  { id: "chat", label: "Chat" },  // Added Chat tab
 ];
 
 export const Header = ({ activeTab, onTabChange, fileName, onChangeDocument }: HeaderProps) => {
@@ -25,7 +26,7 @@ export const Header = ({ activeTab, onTabChange, fileName, onChangeDocument }: H
             <span className="text-lg font-semibold tracking-tight text-foreground" style={{ textShadow: '0 0 8px rgba(211,211,211,0.3)' }}>
               DocuMind
             </span>
-            
+
             {/* Tabs - beside logo */}
             <nav className="flex items-center gap-1">
               {tabs.map((tab) => (

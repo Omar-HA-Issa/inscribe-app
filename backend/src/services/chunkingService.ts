@@ -12,8 +12,8 @@ export class ChunkingService {
 
   constructor() {
     this.splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 500,
-      chunkOverlap: 50,
+      chunkSize: 1200,
+      chunkOverlap: 150,
       lengthFunction: this.countTokens.bind(this),
     });
   }

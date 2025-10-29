@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileUpload } from "../components/FileUpload";
 import { Header } from "../components/Header";
 import { Summary } from "../components/sections/Summary";
@@ -6,84 +6,114 @@ import { Insights } from "../components/sections/Insights";
 import { Contradictions } from "../components/sections/Contradictions";
 import { Visuals } from "../components/sections/Visuals";
 import { Report } from "../components/sections/Report";
-import { uploadDocument } from "../lib/api";
+import { Chat } from "../components/sections/Chat";
+import { Sidebar } from "../components/sections/Sidebar";
+import { uploadDocument } from "../lib/apiClient.ts";
 import { useToast } from "../hooks/use-toast";
 
 const Index = () => {
   const [file, setFile] = useState<File | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("summary");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [documentId, setDocumentId] = useState<string | null>(null);
+  const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const savedFileName = localStorage.getItem("currentFileName");
+    const savedDocumentId = localStorage.getItem("currentDocumentId");
+    const savedTab = localStorage.getItem("activeTab");
+
+    if (savedFileName) {
+      setFileName(savedFileName);
+      const fakeFile = new File([], savedFileName);
+      setFile(fakeFile);
+    }
+    if (savedDocumentId) setDocumentId(savedDocumentId);
+    if (savedTab) setActiveTab(savedTab);
+  }, []);
+
+  useEffect(() => {
+    if (fileName) localStorage.setItem("currentFileName", fileName);
+    if (documentId) localStorage.setItem("currentDocumentId", documentId);
+    localStorage.setItem("activeTab", activeTab);
+  }, [fileName, documentId, activeTab]);
 
   const handleFileSelect = async (selectedFile: File) => {
     setIsAnalyzing(true);
     setFile(selectedFile);
+    setFileName(selectedFile.name);
 
     try {
-      // Upload the file to backend
-      console.log('📤 Uploading file:', selectedFile.name);
       const response = await uploadDocument(selectedFile);
 
       if (response.success && response.document) {
-        console.log('✅ Upload successful:', response.document);
         setDocumentId(response.document.id);
-
-        // Show success toast
         toast({
           title: "Upload successful!",
           description: `${response.document.filename} has been uploaded and processed.`,
         });
-
-        // Move to summary view
         setIsAnalyzing(false);
         setActiveTab("summary");
       } else {
-        throw new Error(response.message || 'Upload failed');
+        throw new Error(response.message || "Upload failed");
       }
     } catch (error) {
-      console.error('❌ Upload error:', error);
-
-      // Show error toast
+      console.error("❌ Upload error:", error);
       toast({
         title: "Upload failed",
-        description: error instanceof Error ? error.message : "Failed to upload document. Please try again.",
+        description:
+          error instanceof Error ? error.message : "Failed to upload document. Please try again.",
         variant: "destructive",
       });
-
-      // Reset state on error
       setIsAnalyzing(false);
       setFile(null);
+      setFileName(null);
       setDocumentId(null);
     }
   };
 
   const handleChangeDocument = () => {
+    localStorage.removeItem("currentFileName");
+    localStorage.removeItem("currentDocumentId");
+    localStorage.removeItem("activeTab");
     setFile(null);
+    setFileName(null);
     setDocumentId(null);
     setActiveTab("summary");
+    setSelectedDocs([]);
   };
 
   const renderSection = () => {
     switch (activeTab) {
       case "summary":
-        return <Summary/>;
+        return <Summary />;
       case "insights":
-        return <Insights/>;
+        return <Insights />;
       case "contradictions":
-        return <Contradictions/>;
+        return <Contradictions />;
       case "visuals":
-        return <Visuals/>;
+        return <Visuals />;
       case "report":
-        return <Report/>;
+        return <Report />;
+      case "chat":
+        // Full-height layout under header, no width constraint
+        return (
+          <div className="flex h-[calc(100vh-6rem)] border rounded-lg overflow-hidden">
+            <Sidebar
+              selectedDocs={selectedDocs}
+              setSelectedDocs={setSelectedDocs}
+            />
+            <Chat selectedDocs={selectedDocs} />
+          </div>
+        );
       default:
-        return <Summary/>;
+        return <Summary />;
     }
   };
 
-  if (!file) {
-    return <FileUpload onFileSelect={handleFileSelect} />;
-  }
+  if (!file) return <FileUpload onFileSelect={handleFileSelect} />;
 
   if (isAnalyzing) {
     return (
@@ -104,15 +134,12 @@ const Index = () => {
       <Header
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        fileName={file.name}
+        fileName={fileName || file.name}
         onChangeDocument={handleChangeDocument}
       />
 
-      <main className="container mx-auto px-6 pt-28 pb-16">
-        <div className="max-w-6xl mx-auto">
-          {renderSection()}
-        </div>
-      </main>
+      {/* Remove max-width container so Chat can span full width */}
+      <main className="px-6 pt-28 pb-6">{renderSection()}</main>
     </div>
   );
 };

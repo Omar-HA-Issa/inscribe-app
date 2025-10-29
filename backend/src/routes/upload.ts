@@ -1,138 +1,188 @@
-import { Router, Request, Response } from 'express';
-import multer from 'multer';
-import { FileParser } from '../services/fileParser';
-import { ChunkingService } from '../services/chunkingService';
-import { EmbeddingService } from '../services/embeddingService';
-import { supabase } from '../config/supabase';
-import { writeFile, unlink } from 'fs/promises';
-import path from 'path';
-import os from 'os';
+import { Router } from "express";
+import multer from "multer";
+import type { Request } from "express";
+import supabase from "../lib/supabase";
+import { EmbeddingService } from "../services/embeddingService";
+// import { authRequired } from "../middleware/auth";
+import { ChunkingService } from "../services/chunkingService";
 
-const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const r = Router();
 
-router.post('/upload', upload.single('file'), async (req: Request, res: Response) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    // Initialize services
-    const chunkingService = new ChunkingService();
-    const embeddingService = new EmbeddingService(process.env.OPENAI_API_KEY!);
-
-    const file = req.file;
-    const fileName = `${Date.now()}-${file.originalname}`;
-    const filePath = `documents/${fileName}`;
-
-    console.log(`Processing file: ${file.originalname}`);
-
-    // Step 1: Upload file to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('documents')
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-      });
-
-    if (uploadError) {
-      console.error('Storage upload error:', uploadError);
-      return res.status(500).json({ error: 'Failed to upload file to storage' });
-    }
-
-    // Step 2: Parse document content
-    console.log('Parsing document content...');
-    const tempFilePath = path.join(os.tmpdir(), `${Date.now()}-${file.originalname}`);
-    await writeFile(tempFilePath, file.buffer);
-
-    let parsedText: string;
-    try {
-      parsedText = await FileParser.parseFile(tempFilePath, file.mimetype);
-      await unlink(tempFilePath);
-    } catch (error) {
-      await unlink(tempFilePath);
-      console.error('Document parsing error:', error);
-      throw new Error('Failed to parse document');
-    }
-
-    // Step 3: Save document metadata to database
-    const { data: documentData, error: documentError } = await supabase
-      .from('documents')
-      .insert({
-        title: file.originalname,
-        file_name: file.originalname,
-        file_type: file.mimetype,
-        file_size: file.size,
-        file_url: filePath,
-        content: parsedText,
-      })
-      .select()
-      .single();
-
-    if (documentError) {
-      console.error('Database insert error:', documentError);
-      return res.status(500).json({ error: 'Failed to save document metadata' });
-    }
-
-    console.log(`Document saved with ID: ${documentData.id}`);
-
-    // Step 4: Chunk the document
-    console.log('Chunking document...');
-    const chunks = await chunkingService.chunkText(parsedText);
-    console.log(`Created ${chunks.length} chunks`);
-
-    // Step 5: Generate embeddings for all chunks
-    console.log('Generating embeddings...');
-    const chunkTexts = chunks.map(c => c.content);
-
-    let embeddings;
-    try {
-      embeddings = await embeddingService.generateEmbeddings(chunkTexts);
-      console.log(`Generated ${embeddings.length} embeddings`);
-    } catch (embeddingError) {
-      console.error('Embedding generation error:', embeddingError);
-      throw new Error('Failed to generate embeddings');
-    }
-
-    // Step 6: Save chunks with embeddings to database
-    console.log('Saving chunks to database...');
-    const chunksToInsert = chunks.map((chunk, index) => ({
-      document_id: documentData.id,
-      content: chunk.content,
-      chunk_index: chunk.chunkIndex,
-      embedding: embeddings[index],
-      metadata: {
-        token_count: chunk.tokenCount,
-      },
-    }));
-
-    const { error: chunksError } = await supabase
-      .from('document_chunks')
-      .insert(chunksToInsert);
-
-    if (chunksError) {
-      console.error('Chunks insert error:', chunksError);
-      return res.status(500).json({ error: 'Failed to save document chunks' });
-    }
-
-    console.log('Document processing complete');
-
-    res.json({
-      success: true,
-      message: 'Document uploaded and processed successfully',
-      document: {
-        id: documentData.id,
-        filename: documentData.file_name,
-        chunksCreated: chunks.length,
-      },
-    });
-  } catch (error) {
-    console.error('Error processing upload:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    res.status(500).json({
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
 });
 
-export default router;
+/** Shape we’ll use throughout this file for chunks */
+type Chunk = {
+  index: number;
+  text: string;
+  metadata?: Record<string, any>;
+};
+
+/** Batch embeddings to avoid a single huge request */
+async function embedInBatches(texts: string[], batchSize: number = 64): Promise<number[][]> {
+  const out: number[][] = [];
+  for (let i = 0; i < texts.length; i += batchSize) {
+    const slice: string[] = texts.slice(i, i + batchSize);
+    const vecs: number[][] = await EmbeddingService.generateEmbeddings(slice); // STATIC call
+    out.push(...vecs);
+  }
+  return out;
+}
+
+/** Normalize whatever the chunker returns into our {index, text, metadata} shape */
+async function normalizeChunksFromFile(file: Express.Multer.File): Promise<Chunk[]> {
+  // Prefer binary-aware chunking (PDF/DOCX) if your service exposes it
+  const anyChunker = ChunkingService as any;
+
+  if (typeof anyChunker?.chunkDocument === "function") {
+    const raw = await anyChunker.chunkDocument({
+      buffer: file.buffer,
+      filename: file.originalname,
+      // You can pass tuning knobs if your service supports them:
+      // chunkSize: 1200, chunkOverlap: 150
+    });
+
+    const chunks: Chunk[] = (raw || []).map((c: any, i: number) => ({
+      index: typeof c.index === "number" ? c.index : i,
+      text: typeof c.text === "string" ? c.text : (typeof c.content === "string" ? c.content : String(c ?? "")),
+      metadata: typeof c.metadata === "object" && c.metadata ? c.metadata : undefined,
+    }));
+
+    return chunks;
+  }
+
+  // Fallback: treat file as UTF-8 text
+  const text = file.buffer.toString("utf8");
+  const raw = await anyChunker?.chunk?.(text);
+  const chunks: Chunk[] = (raw || []).map((c: any, i: number) => ({
+    index: typeof c.index === "number" ? c.index : i,
+    text: typeof c.text === "string" ? c.text : (typeof c.content === "string" ? c.content : String(c ?? "")),
+    metadata: typeof c.metadata === "object" && c.metadata ? c.metadata : undefined,
+  }));
+  return chunks;
+}
+
+r.post(
+  "/upload",
+  // authRequired,
+  upload.single("file"),
+  async (req: Request, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: "No file uploaded" });
+      }
+
+      // You said auth is all backend-side:
+      const userId: string | null = (req as any).user?.id ?? null;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+      }
+
+      const { originalname, mimetype, size } = req.file;
+      console.log(`\n--- Upload received: ${originalname} (${size} bytes, ${mimetype}) ---`);
+
+      // 1) Chunking
+      console.time("chunking");
+      const chunks: Chunk[] = await normalizeChunksFromFile(req.file);
+      console.timeEnd("chunking");
+
+      if (!chunks.length) {
+        return res.status(400).json({ success: false, message: "No text content found to chunk" });
+      }
+      console.log(`Created ${chunks.length} chunk(s)`);
+
+      // 2) Insert document row to get document_id (map to your schema)
+      const sb = supabase();
+      const { data: docIns, error: docErr } = await sb
+        .from("documents")
+        .insert({
+          user_id: userId,
+          title: originalname,        // you can later let user rename
+          file_name: originalname,
+          file_type: mimetype,
+          file_size: size,
+          content: null,              // keeping null so we rely on chunks
+          file_url: null,             // set if you also upload raw file to storage
+          metadata: {},               // optional: add any derived metadata
+        })
+        .select("id")
+        .single();
+
+      if (docErr || !docIns) {
+        console.error("Supabase insert document error:", docErr);
+        return res.status(500).json({ success: false, message: "Failed to create document record" });
+      }
+      const documentId: string = docIns.id;
+
+      // 3) Embeddings (batched)
+      console.time("embeddings");
+      const texts: string[] = chunks.map((c: Chunk) => c.text);
+      const BATCH_SIZE = 64;
+
+      const vectors: number[][] =
+        texts.length > BATCH_SIZE
+          ? await embedInBatches(texts, BATCH_SIZE)
+          : await EmbeddingService.generateEmbeddings(texts); // STATIC call
+      console.timeEnd("embeddings");
+
+      if (!vectors.length || vectors.length !== texts.length) {
+        throw new Error("Failed to generate embeddings for all chunks");
+      }
+
+      // 4) Persist chunks in batches (map to your schema)
+      console.time("persist");
+      type ChunkRow = {
+        document_id: string;
+        content: string;
+        chunk_index: number;
+        embedding: number[]; // pgvector accepts number[]; Supabase coerces to vector(1536)
+        metadata: Record<string, any> | null;
+      };
+
+      const rows: ChunkRow[] = chunks.map((c: Chunk, i: number): ChunkRow => ({
+        document_id: documentId,
+        content: c.text,
+        chunk_index: c.index ?? i,
+        embedding: vectors[i],
+        metadata: c.metadata ?? null,
+      }));
+
+      const INSERT_BATCH = 100;
+      for (let i = 0; i < rows.length; i += INSERT_BATCH) {
+        const slice: ChunkRow[] = rows.slice(i, i + INSERT_BATCH);
+        const { error: chunkErr } = await sb.from("document_chunks").insert(slice);
+        if (chunkErr) {
+          console.error("Supabase insert chunks error:", chunkErr);
+          throw new Error("Failed to save chunks");
+        }
+      }
+      console.timeEnd("persist");
+
+      return res.json({
+        success: true,
+        message: "Upload processed",
+        document: {
+          id: documentId,
+          file_name: originalname,
+          file_type: mimetype,
+          file_size: size,
+          chunkCount: chunks.length,
+        },
+      });
+    } catch (err: any) {
+      console.error("Error processing upload:", err?.message || err);
+      console.error("Error stack:", err?.stack || err);
+      const msg =
+        typeof err?.message === "string" &&
+        (err.message.includes("generateEmbeddings is not a function") ||
+          err.message.includes("Failed to generate embeddings"))
+          ? "Failed to generate embeddings (check EmbeddingService export, OpenAI key, and model)."
+          : "Upload failed. Please try again.";
+      return res.status(500).json({ success: false, message: msg });
+    }
+  }
+);
+
+export default r;
