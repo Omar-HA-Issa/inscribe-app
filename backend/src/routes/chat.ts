@@ -1,71 +1,97 @@
 import { Router } from "express";
-import type { Request } from "express";
-import supabase from "../lib/supabase";
-import { EmbeddingService } from "../services/embeddingService";
-import OpenAI from "openai";
-// import { authRequired } from "../middleware/auth";
+import type { Request, Response } from "express";
+import { requireAuth } from "../middleware/authMiddleware";
+import { ChatService } from "../services/chatService";
+import { adminClient } from "../lib/supabase";
 
-const r = Router();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const router = Router();
+router.use(requireAuth);
 
 /**
- * BODY: { question: string, topK?: number }
- * Returns an answer using RAG over user's chunks.
+ * POST /api/chat
+ * Body: { question: string, selectedDocumentIds?: string[], topK?: number, similarityThreshold?: number }
  */
-r.post("/chat", /* authRequired, */ async (req: Request, res) => {
+router.post("/chat", async (req: Request, res: Response) => {
   try {
-    const userId: string | null = (req as any).user?.id ?? null;
-    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+    const userId: string | null = req.authUserId ?? null;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
 
-    const { question, topK = 6 } = req.body || {};
+    const {
+      question,
+      selectedDocumentIds,
+      topK = 6,
+      similarityThreshold = 0.15,
+    } = req.body || {};
+
+    // 🔍 DEBUG LOGGING
+    console.log('\n====== CHAT REQUEST ======');
+    console.log('User ID:', userId);
+    console.log('Question:', question);
+    console.log('Selected Document IDs:', selectedDocumentIds);
+    console.log('TopK:', topK);
+    console.log('Similarity Threshold:', similarityThreshold);
+    console.log('==========================\n');
+
     if (!question || typeof question !== "string") {
       return res.status(400).json({ success: false, message: "Missing question" });
     }
 
-    // 1) embed query
-    const [[...qvec]] = await EmbeddingService.generateEmbeddings([question]); // STATIC (fix)
+    // Get user-scoped Supabase client (with RLS)
+    const sb = adminClient();
 
-    // 2) retrieve top contexts via RPC
-    const sb = supabase();
-    const { data: matches, error } = await sb.rpc("match_document_chunks", {
-      p_user_id: userId,
-      p_query_embedding: qvec as unknown as number[],
-      p_match_count: topK,
-      p_min_similarity: 0.2,
-    });
-    if (error) {
-      console.error("chat rpc error:", error);
-      return res.status(500).json({ success: false, message: "Context retrieval failed" });
-    }
+    // Use ChatService with optional document filtering
+    const response = await ChatService.chat(
+      question,
+      topK,
+      similarityThreshold,
+      selectedDocumentIds,
+      sb
+    );
 
-    const context = (matches || [])
-      .map((m: any, i: number) => `[[Chunk ${i + 1} | doc:${m.document_id} | sim:${m.similarity.toFixed(3)}]]\n${m.content}`)
-      .join("\n\n");
+    // 🔍 DEBUG LOGGING
+    console.log('\n====== CHAT RESPONSE ======');
+    console.log('Success:', response.success);
+    console.log('Chunks Used:', response.chunksUsed);
+    console.log('Sources:', response.sources.length);
+    console.log('Answer Preview:', response.answer.substring(0, 100) + '...');
+    console.log('===========================\n');
 
-    // 3) generate answer
-    const prompt = `
-You are a helpful assistant. Answer the user's question using ONLY the provided context. 
-If the answer isn't in the context, say you don't have enough information.
-
-# Context
-${context}
-
-# Question
-${question}
-`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.2,
-    });
-
-    const answer = completion.choices[0]?.message?.content ?? "Sorry, no answer.";
-    return res.json({ success: true, answer, sources: matches ?? [] });
+    return res.json(response);
   } catch (err: any) {
-    console.error("chat error:", err?.message || err);
+    console.error("Chat error:", err?.message || err);
     return res.status(500).json({ success: false, message: "Chat failed" });
   }
 });
 
-export default r;
+/**
+ * POST /api/chat/summarize/:documentId
+ * Summarize a specific document
+ */
+router.post("/summarize/:documentId", async (req: Request, res: Response) => {
+  try {
+    const userId: string | null = req.authUserId ?? null;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const { documentId } = req.params;
+    const { maxChunks = 30 } = req.body || {};
+
+    console.log('\n====== SUMMARIZE REQUEST ======');
+    console.log('Document ID:', documentId);
+    console.log('Max Chunks:', maxChunks);
+    console.log('================================\n');
+
+    const sb = adminClient();
+    const response = await ChatService.summarizeDocument(documentId, maxChunks, sb);
+
+    return res.json(response);
+  } catch (err: any) {
+    console.error("Summarize error:", err?.message || err);
+    return res.status(500).json({ success: false, message: "Summarization failed" });
+  }
+});
+
+export default router;

@@ -1,53 +1,226 @@
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-/** Upload one document (multipart/form-data) */
-export async function uploadDocument(file: File) {
-  const formData = new FormData();
-  formData.append("file", file);
+export interface AuthResponse {
+  user?: {
+    id: string;
+    email: string;
+    [key: string]: any;
+  };
+  session?: {
+    access_token: string;
+    refresh_token: string;
+  };
+  needs_email_confirm?: boolean;
+  error?: string;
+}
 
-  const res = await fetch(`${API_URL}/upload`, {
+/** POST /api/signup - Register new user */
+export async function signUp(email: string, password: string): Promise<AuthResponse> {
+  const res = await fetch(`${API_URL}/api/signup`, {
     method: "POST",
-    body: formData,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
   });
 
   if (!res.ok) {
-    let msg = "Upload failed";
+    let msg = "Signup failed";
     try {
       const j = await res.json();
       msg = j.error || j.message || msg;
     } catch (_) {}
     throw new Error(msg);
   }
-  return res.json(); // { success, document:{id, filename,...}, chunksCreated, ... }
+
+  const data = await res.json();
+
+  // ✅ Store tokens in localStorage
+  if (data.session) {
+    localStorage.setItem("access_token", data.session.access_token);
+    localStorage.setItem("refresh_token", data.session.refresh_token);
+  }
+
+  return data;
 }
 
-/** GET /documents - list user’s documents (RLS enforced on backend) */
+/** POST /api/login - Sign in existing user */
+export async function signIn(email: string, password: string): Promise<AuthResponse> {
+  const res = await fetch(`${API_URL}/api/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!res.ok) {
+    let msg = "Login failed";
+    try {
+      const j = await res.json();
+      msg = j.error || j.message || msg;
+    } catch (_) {}
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+
+  // ✅ Store tokens in localStorage
+  if (data.session) {
+    localStorage.setItem("access_token", data.session.access_token);
+    localStorage.setItem("refresh_token", data.session.refresh_token);
+  }
+
+  return data;
+}
+
+/** POST /api/logout - Sign out current user */
+export async function signOut(): Promise<void> {
+  await fetch(`${API_URL}/api/logout`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+
+  // ✅ Clear tokens from localStorage
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
+}
+
+/** GET /api/me - Get current user info */
+export async function getCurrentUser(): Promise<AuthResponse> {
+  const res = await fetch(`${API_URL}/api/me`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  if (!res.ok) {
+    throw new Error("Not authenticated");
+  }
+
+  return res.json();
+}
+
+/** POST /api/forgot-password - Request password reset */
+export async function resetPasswordRequest(email: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_URL}/api/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to send reset email");
+  }
+
+  return res.json();
+}
+
+// =====================
+// Helper Functions
+// =====================
+
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem("access_token");
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  return headers;
+}
+
+export function getAuthToken(): string | null {
+  return localStorage.getItem("access_token");
+}
+
+export function isAuthenticated(): boolean {
+  return !!getAuthToken();
+}
+
+// =====================
+// Document APIs (Protected)
+// =====================
+
+/** GET /api/documents - Fetch user's documents */
 export async function fetchUserDocuments() {
-  const res = await fetch(`${API_URL}/documents`, {
-    headers: { "Content-Type": "application/json" },
+  const res = await fetch(`${API_URL}/api/documents`, {
+    headers: getAuthHeaders(),
   });
-  if (!res.ok) throw new Error("Failed to fetch documents");
-  const json = await res.json();
-  return json.documents || [];
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      await signOut();
+      throw new Error("Session expired. Please login again.");
+    }
+    throw new Error("Failed to fetch documents");
+  }
+
+  return res.json();
 }
 
-/** POST /chat - ask about selected docs */
-export async function sendChatQuery(query: string, selectedDocumentIds: string[] = []) {
-  const res = await fetch(`${API_URL}/chat`, {
+/** POST /api/upload - Upload a document */
+export async function uploadDocument(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const token = getAuthToken();
+  const headers: HeadersInit = {};
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_URL}/api/upload`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, selectedDocumentIds }),
+    headers: headers, // ✅ Only Authorization header, let browser set Content-Type for FormData
+    body: formData,
   });
-  if (!res.ok) throw new Error("Chat failed");
-  return res.json(); // { answer, sources, ... }
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error("Not authenticated");
+    }
+    const error = await res.json().catch(() => ({ error: "Upload failed" }));
+    throw new Error(error.error || error.message || "Upload failed");
+  }
+
+  return res.json();
 }
 
-/** POST /chat/summarize/:id - summarize a single doc */
-export async function summarizeDocument(documentId: string) {
-  const res = await fetch(`${API_URL}/chat/summarize/${documentId}`, {
+/** POST /api/chat - Send a chat query */
+export async function sendChatQuery(query: string, limit: number = 5) {
+  const res = await fetch(`${API_URL}/api/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ question: query, topK: limit }),
   });
-  if (!res.ok) throw new Error("Summarize failed");
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      await signOut();
+      throw new Error("Session expired. Please login again.");
+    }
+    throw new Error("Chat query failed");
+  }
+
+  return res.json();
+}
+
+/** POST /api/search - Search documents */
+export async function searchDocuments(query: string, topK: number = 8, minSimilarity: number = 0.2) {
+  const res = await fetch(`${API_URL}/api/search`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ query, topK, minSimilarity }),
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      await signOut();
+      throw new Error("Session expired. Please login again.");
+    }
+    throw new Error("Search failed");
+  }
+
   return res.json();
 }

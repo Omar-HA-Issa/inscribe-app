@@ -2,15 +2,17 @@ import { api } from './api';
 
 export interface ChatSource {
   document: string;
-  chunk_index: number;
-  similarity: number;
+  document_id: string;
+  chunksUsed: number;
+  topSimilarity: number;
 }
 
 export interface ChatRequest {
-  query: string;
+  question: string;
   limit?: number;
   similarityThreshold?: number;
   documentId?: string;
+  selectedDocumentIds?: string[];
 }
 
 export interface ChatResponse {
@@ -22,23 +24,29 @@ export interface ChatResponse {
 
 export const chatApi = {
   async sendMessage(
-    query: string,
-    limit: number = 5,
-    similarityThreshold: number = 0.7,
-    documentId?: string
+      question: string,
+      limit: number = 5,
+      similarityThreshold: number = 0.7,
+      documentId?: string,
+      selectedDocumentIds?: string[]
   ): Promise<ChatResponse> {
     const body: ChatRequest = {
-      query,
+      question,
       limit,
       similarityThreshold,
     };
 
-    // Only include documentId if it's provided
     if (documentId) {
       body.documentId = documentId;
     }
 
-    return api.request<ChatResponse>('/chat', {
+    if (selectedDocumentIds && selectedDocumentIds.length > 0) {
+      body.selectedDocumentIds = selectedDocumentIds; // ← Make sure this is here!
+    }
+
+    console.log('📤 Frontend sending:', JSON.stringify(body)); // ← Add this
+
+    return api.request<ChatResponse>('/api/chat', {
       method: 'POST',
       body: JSON.stringify(body),
     });

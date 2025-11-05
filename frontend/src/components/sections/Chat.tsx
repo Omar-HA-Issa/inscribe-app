@@ -2,31 +2,17 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Bot, User, FileText, AlertCircle, Sparkles } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Send, Bot, User, AlertCircle, Sparkles, Copy } from "lucide-react";
 import { chatApi } from "@/services/chatApi";
 import { useToast } from "@/hooks/use-toast";
-
-interface Source {
-  document: string;
-  chunk_index?: number;
-  similarity?: number;
-}
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
-  sources?: DocumentGroup[];
   error?: boolean;
-}
-
-interface DocumentGroup {
-  document: string;
-  count: number;
-  maxSimilarity?: number;
-  avgSimilarity?: number;
 }
 
 interface ChatProps {
@@ -40,68 +26,7 @@ const SUGGESTED_QUESTIONS = [
   "Explain the methodology used",
 ];
 
-/** Groups raw chunk sources by document; computes max + average similarity */
-const groupSourcesByDocument = (sources: Source[] | undefined): DocumentGroup[] => {
-  if (!sources || sources.length === 0) return [];
-  const map = new Map<string, { sum: number; count: number; max: number }>();
-
-  sources.forEach((s) => {
-    const key = s.document;
-    const sim = s.similarity ?? 0;
-    if (!map.has(key)) {
-      map.set(key, { sum: sim, count: 1, max: sim });
-    } else {
-      const entry = map.get(key)!;
-      entry.sum += sim;
-      entry.count += 1;
-      entry.max = Math.max(entry.max, sim);
-    }
-  });
-
-  return [...map.entries()].map(([document, v]) => ({
-    document,
-    count: v.count,
-    maxSimilarity: v.max,
-    avgSimilarity: v.sum / v.count,
-  }));
-};
-
-/** Renders grouped sources without chunk details */
-const SourceList: React.FC<{ groups: DocumentGroup[] }> = ({ groups }) => {
-  if (!groups || groups.length === 0) return null;
-
-  return (
-    <div className="mt-4 pt-3 border-t border-border/50">
-      <div className="flex items-center gap-2 mb-2">
-        <FileText className="w-3 h-3 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground">Sources:</span>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {groups.map((g) => (
-          <Badge
-            key={`badge-${g.document}`}
-            variant="secondary"
-            className="text-xs"
-            title={
-              typeof g.avgSimilarity === "number"
-                ? `Avg match: ${(g.avgSimilarity * 100).toFixed(0)}%`
-                : undefined
-            }
-          >
-            {g.document} —{" "}
-            {typeof g.maxSimilarity === "number"
-              ? `${(g.maxSimilarity * 100).toFixed(0)}% match`
-              : "match"}
-            {` (${g.count} chunk${g.count > 1 ? "s" : ""})`}
-          </Badge>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-export const Chat: React.FC<ChatProps> = ({ selectedDocs }) => {
+export const Chat: React.FC<ChatProps> = ({ selectedDocs = [] }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -110,7 +35,6 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs }) => {
         "Hello! I'm DocuMind AI. I can answer questions about your uploaded documents. What would you like to know?",
       timestamp: new Date(),
     },
-
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -120,45 +44,25 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
+  // ChatGPT-style composer: ref + auto-grow helper
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  function autoGrow(el: HTMLTextAreaElement) {
+    el.style.height = "0px";
+    el.style.height = Math.min(el.scrollHeight, 220) + "px";
+  }
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function askBackend(
-    question: string,
-    limit = 5,
-    threshold = 0.0
-  ): Promise<any> {
-    try {
-      // If selectedDocs are provided, call the REST API directly with an array filter
-      if (Array.isArray(selectedDocs) && selectedDocs.length > 0) {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: question,
-            limit,
-            similarityThreshold: threshold,
-            selectedDocumentIds: selectedDocs,
-          }),
-        });
-        if (!res.ok) throw new Error(`Chat failed (${res.status})`);
-        return await res.json();
-      }
+  useEffect(() => {
+    if (textareaRef.current) autoGrow(textareaRef.current);
+  }, []);
 
-      // Otherwise, preserve your existing behavior
-      // (Your chatApi likely accepts: (message, limit, threshold, documentId?))
-      return await chatApi.sendMessage(question, limit, threshold, undefined);
-    } catch (e) {
-      throw e;
-    }
-  }
-
-  const handleSend = async (preset?: string) => {
+  async function handleSend(preset?: string) {
     const messageText = preset || input;
     if (!messageText.trim() || isLoading) return;
 
-    // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -171,42 +75,26 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs }) => {
     setIsLoading(true);
 
     try {
-      // 🔧 Call backend (with selected docs if provided)
-      const response = await askBackend(messageText, 5, 0.0);
-
-      // Normalize sources to a flat {document, similarity}[] for grouping
-      const raw = response?.sources ?? [];
-      let normalized: Source[] = [];
-
-      if (raw.length > 0) {
-        if (raw[0]?.topSimilarity !== undefined && raw[0]?.document) {
-          normalized = raw.map((r: any) => ({
-            document: r.document,
-            similarity: r.topSimilarity,
-          }));
-        }
-
-        else if (raw[0]?.document) {
-          normalized = raw as Source[];
-        }
-      }
-
-      const groups: DocumentGroup[] = groupSourcesByDocument(normalized);
+      const response = await chatApi.sendMessage(
+        messageText,
+        5,
+        0.15,
+        undefined,
+        selectedDocs.length > 0 ? selectedDocs : undefined
+      );
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: response?.answer ?? "I don't know.",
         timestamp: new Date(),
-        sources: groups,
         error: false,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
 
-      // Toast: unique docs and total chunks
-      const uniqueDocs = groups.length;
-      const totalChunks = normalized?.length ?? 0;
+      const uniqueDocs = response?.sources?.length ?? 0;
+      const totalChunks = response?.chunksUsed ?? 0;
       if (uniqueDocs > 0) {
         toast({
           title: "Answer found!",
@@ -235,76 +123,98 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs }) => {
       });
     } finally {
       setIsLoading(false);
+      if (textareaRef.current) autoGrow(textareaRef.current);
     }
-  };
+  }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+  function copyToClipboard(text: string) {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast({ title: "Copied", description: "Message copied to clipboard." }))
+      .catch(() =>
+        toast({ title: "Copy failed", description: "Could not copy text.", variant: "destructive" })
+      );
+  }
 
   return (
-      <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
-
-
+      <div className="flex-1 flex flex-col h-full bg-transparent backdrop-blur-0 overflow-hidden">
         {/* Messages Area */}
         <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
-            <AnimatePresence>
+          {/* full-bleed (no inner box) */}
+          <div className="w-full px-6 md:px-10 py-10 space-y-6">
+            <AnimatePresence initial={false}>
               {messages.map((message, index) => (
                   <motion.div
                       key={message.id}
-                      initial={{opacity: 0, y: 10}}
+                      initial={{opacity: 0, y: 8}}
                       animate={{opacity: 1, y: 0}}
-                      transition={{duration: 0.3, delay: index * 0.05}}
-                      className={`flex gap-4 ${
-                          message.role === "user" ? "justify-end" : "justify-start"
-                      }`}
+                      transition={{duration: 0.25, delay: Math.min(index * 0.03, 0.2)}}
+                      className={`flex items-start ${message.role === "user" ? "justify-end" : "justify-start"} gap-3 md:gap-4`}
                   >
                     {message.role === "assistant" && (
                         <div
-                            className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
+                            className="mt-1 w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
                           <Bot className="w-5 h-5 text-accent"/>
                         </div>
                     )}
 
                     <div
-                        className={`rounded-lg p-4 ${
+                        className={`group relative rounded-2xl px-5 py-4 border ${
                             message.role === "user"
-                                ? "bg-accent/10 border border-accent/20 max-w-[80%]"
+                                ? "bg-accent/10 border-accent/20 text-foreground max-w-[80%] md:max-w-[82%]"
                                 : message.error
-                                    ? "bg-destructive/10 border border-destructive/20 max-w-[85%]"
-                                    : "bg-transparent max-w-full"
+                                    ? "bg-destructive/10 border-destructive/20 text-foreground max-w-[80%] md:max-w-[82%]"
+                                    : "bg-card/40 border-border text-foreground max-w-[82%]"
                         }`}
                     >
                       {message.error && (
-                          <div className="flex items-center gap-2 mb-2 text-destructive">
+                          <div className="flex items-center gap-2 -mt-1 mb-2 text-destructive">
                             <AlertCircle className="w-4 h-4"/>
                             <span className="text-sm font-medium">Error</span>
                           </div>
                       )}
-                      <p className="text-foreground leading-relaxed whitespace-pre-wrap">
-                        {message.content}
-                      </p>
 
-                      {/* Source Citations (grouped, no chunk expansion) */}
-                      {Array.isArray(message.sources) && message.sources.length > 0 && (
-                          <SourceList groups={message.sources as DocumentGroup[]}/>
+                      {message.role === "assistant" ? (
+                          <div
+                              className="prose-sm md:prose dark:prose-invert max-w-none leading-normal
+                                 prose-headings:text-foreground prose-headings:font-semibold
+                                 prose-p:text-foreground prose-p:leading-normal
+                                 prose-strong:text-foreground prose-strong:font-semibold
+                                 prose-ul:text-foreground prose-ol:text-foreground
+                                 prose-li:text-foreground
+                                 prose-code:text-accent prose-code:bg-accent/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+                                 prose-pre:bg-muted prose-pre:text-foreground prose-pre:text-[0.9rem] md:prose-pre:text-[0.95rem]
+                                 prose-a:text-accent prose-a:no-underline hover:prose-a:underline"
+                          >
+                            <ReactMarkdown>{message.content}</ReactMarkdown>
+                          </div>
+                      ) : (
+                          <p className="text-foreground text-sm md:text-base leading-normal whitespace-pre-wrap">
+                            {message.content}
+                          </p>
                       )}
 
-                      <span className="text-xs text-muted-foreground mt-2 block">
-                    {message.timestamp.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
+                      <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {message.timestamp.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}
+                    </span>
+                        {message.role === "assistant" && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Copy message"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 p-0 ml-1 text-muted-foreground hover:text-foreground"
+                                onClick={() => copyToClipboard(message.content)}
+                            >
+                              <Copy className="h-4 w-4"/>
+                            </Button>
+                        )}
+                      </div>
                     </div>
 
                     {message.role === "user" && (
                         <div
-                            className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                            className="mt-1 w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                           <User className="w-5 h-5 text-primary"/>
                         </div>
                     )}
@@ -314,18 +224,22 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs }) => {
 
             {/* Loading State */}
             {isLoading && (
-                <motion.div initial={{opacity: 0}} animate={{opacity: 1}} className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
+                <motion.div initial={{opacity: 0}} animate={{opacity: 1}} className="flex items-start gap-3 md:gap-4">
+                  <div className="mt-1 w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
                     <Bot className="w-5 h-5 text-accent"/>
                   </div>
-                  <div className="bg-muted/50 border border-border rounded-lg p-4">
+                  <div className="rounded-2xl px-5 py-4 border bg-card/40 border-border">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <div className="flex gap-1">
                         <span className="w-2 h-2 bg-accent rounded-full animate-bounce"/>
                         <span className="w-2 h-2 bg-accent rounded-full animate-bounce [animation-delay:0.2s]"/>
                         <span className="w-2 h-2 bg-accent rounded-full animate-bounce [animation-delay:0.4s]"/>
                       </div>
-                      <span className="text-sm">Searching documents and generating answer...</span>
+                      <span className="text-sm">
+                    {selectedDocs.length > 0
+                        ? `Searching ${selectedDocs.length} selected document${selectedDocs.length !== 1 ? "s" : ""}...`
+                        : "Searching documents and generating answer..."}
+                  </span>
                     </div>
                   </div>
                 </motion.div>
@@ -334,73 +248,99 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs }) => {
             {/* Suggested Questions */}
             {messages.length === 1 && !isLoading && (
                 <motion.div
-                    initial={{opacity: 0, y: 10}}
+                    initial={{opacity: 0, y: 8}}
                     animate={{opacity: 1, y: 0}}
-                    transition={{delay: 0.5}}
+                    transition={{duration: 0.25, delay: 0.2}}
                     className="mt-12"
                 >
                   <div className="text-center mb-6">
                     <h2 className="text-2xl font-semibold mb-2">Chat with Your Documents</h2>
                     <p className="text-muted-foreground">
-                      Ask questions and get AI-powered answers from your uploaded files
+                      {selectedDocs.length > 0
+                          ? `Ask questions about your ${selectedDocs.length} selected document${selectedDocs.length !== 1 ? "s" : ""}`
+                          : "Ask questions and get AI-powered answers from your uploaded files"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 mb-3">
                     <Sparkles className="w-4 h-4 text-accent"/>
-                    <span className="text-sm font-medium text-muted-foreground">
-                  Suggested questions:
-                </span>
+                    <span className="text-sm font-medium text-muted-foreground">Suggested questions:</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {SUGGESTED_QUESTIONS.map((question, idx) => (
+                    {SUGGESTED_QUESTIONS.map((q, idx) => (
                         <Button
                             key={idx}
                             variant="outline"
                             onClick={() => {
-                              setInput(question);
-                              handleSend(question);
+                              setInput(q);
+                              handleSend(q);
                             }}
                             className="text-left text-sm p-4 h-auto justify-start bg-muted/30 hover:bg-muted/50 hover:border-accent/50"
                         >
-                          {question}
+                          {q}
                         </Button>
                     ))}
                   </div>
                 </motion.div>
             )}
 
-            {/* Invisible div for auto-scroll anchor */}
             <div ref={messagesEndRef}/>
           </div>
         </div>
 
-        {/* Input Area - Fixed at Bottom */}
-        <div className="border-t border-border bg-card/50 backdrop-blur-sm">
-          <div className="max-w-4xl mx-auto px-6 py-4">
-            <div className="flex gap-3 items-end">
-              <Textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask a question about your documents..."
-                  className="min-h-[60px] max-h-[200px] resize-none bg-background/50 border-border focus:border-accent rounded-xl"
-                  disabled={isLoading}
-              />
-              <Button
-                  onClick={() => handleSend()}
-                  disabled={!input.trim() || isLoading}
-                  size="icon"
-                  className="bg-accent hover:bg-accent/80 text-foreground h-[60px] w-[60px] rounded-xl flex-shrink-0"
+        {/* Composer (ChatGPT style) — no divider line, full-bleed */}
+        <div className="bg-transparent backdrop-blur-0 shadow-none">
+          <div className="w-full px-6 md:px-10 py-5">
+            <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!isLoading && input.trim()) handleSend();
+                }}
+                className="space-y-0"
+            >
+              <div
+                  className="relative rounded-3xl border border-border bg-transparent shadow-none
+                         focus-within:ring-1 focus-within:ring-accent focus-within:border-accent transition"
               >
-                <Send className="w-5 h-5"/>
-              </Button>
-            </div>
-            {isLoading && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Sparkles className="w-3 h-3 animate-pulse"/>
-                  <span>Processing your question...</span>
-                </div>
-            )}
+                <Textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      if (textareaRef.current) autoGrow(textareaRef.current);
+                    }}
+                    onInput={(e) => autoGrow(e.currentTarget)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!isLoading && input.trim()) handleSend();
+                      }
+                    }}
+                    placeholder={
+                      selectedDocs.length > 0
+                          ? `Ask about ${selectedDocs.length} selected document${selectedDocs.length !== 1 ? "s" : ""}…`
+                          : "Ask a question about your documents…"
+                    }
+                    className="min-h-[44px] max-h-[220px] w-full resize-none
+                           bg-transparent border-0 focus-visible:ring-0 focus:outline-none
+                           px-4 py-3 pr-12 leading-6 text-base rounded-3xl placeholder:text-muted-foreground"
+                    disabled={isLoading}
+                />
+
+                <button
+                    type="submit"
+                    disabled={!input.trim() || isLoading}
+                    aria-label="Send message"
+                    className={`absolute bottom-2 right-2 h-9 w-9 rounded-full grid place-items-center transition ${
+                        !input.trim() || isLoading
+                            ? "bg-muted text-muted-foreground cursor-not-allowed"
+                            : "bg-accent text-foreground hover:bg-accent/85"
+                    }`}
+                >
+                  <Send className="h-4 w-4"/>
+                </button>
+              </div>
+              {/* Removed the hint row ("Press Enter…") */}
+            </form>
           </div>
         </div>
       </div>

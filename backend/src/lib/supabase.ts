@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 function requiredEnv(name: string): string {
   const v = process.env[name];
@@ -6,22 +6,48 @@ function requiredEnv(name: string): string {
   return v;
 }
 
-let _client: SupabaseClient | undefined;
+const SUPABASE_URL = requiredEnv("SUPABASE_URL");
+const ANON_KEY = requiredEnv("SUPABASE_ANON_KEY");
+const SERVICE_ROLE_KEY = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
 
+// Helper: avoids DOM types like RequestInfo/RequestInit
+const globalFetch = (...args: Parameters<typeof fetch>) => fetch(...args);
 
-export default function supabase(): SupabaseClient {
-  if (_client) return _client;
-
-  const SUPABASE_URL = requiredEnv("SUPABASE_URL");
-  const SERVICE_ROLE_KEY = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
-
-  _client = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+let _admin: SupabaseClient | undefined;
+export function adminClient(): SupabaseClient {
+  if (_admin) return _admin;
+  _admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: {
-      fetch: (...args) => fetch(...args),
+      fetch: globalFetch,
       headers: { "x-app-source": "documind-backend" },
     },
   });
+  return _admin;
+}
 
-  return _client;
+let _anon: SupabaseClient | undefined;
+export function anonServerClient(): SupabaseClient {
+  if (_anon) return _anon;
+  _anon = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: globalFetch,
+      headers: { "x-app-source": "documind-backend" },
+    },
+  });
+  return _anon;
+}
+
+export function userClient(accessToken: string): SupabaseClient {
+  return createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: globalFetch,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-app-source": "documind-backend",
+      },
+    },
+  });
 }

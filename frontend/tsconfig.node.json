@@ -12,11 +12,23 @@
     "moduleDetection": "force",
     "noEmit": true,
 
+    /* CJS interop for config files (fixes tailwindcss-animate import) */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
+    /* Nice to have for config files */
+    "types": ["node"],
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "tailwind.config.ts",
+    "postcss.config.ts",
+    "**/*.config.ts"
+  ]
 }

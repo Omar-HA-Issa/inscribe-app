@@ -1,17 +1,15 @@
 import { Router } from "express";
 import type { Request } from "express";
-import supabase from "../lib/supabase";
 import { EmbeddingService } from "../services/embeddingService";
-// import { authRequired } from "../middleware/auth";
+import {adminClient} from "../lib/supabase";
+import { requireAuth  } from "../middleware/authMiddleware";
 
-const r = Router();
+const router = Router();
+router.use(requireAuth);
 
-/**
- * BODY: { query: string, topK?: number, minSimilarity?: number }
- */
-r.post("/search", /* authRequired, */ async (req: Request, res) => {
+router.post("/search", async (req: Request, res) => {
   try {
-    const userId: string | null = (req as any).user?.id ?? null;
+    const userId: string | null = req.authUserId ?? null;
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const { query, topK = 8, minSimilarity = 0.2 } = req.body || {};
@@ -19,11 +17,9 @@ r.post("/search", /* authRequired, */ async (req: Request, res) => {
       return res.status(400).json({ success: false, message: "Missing query" });
     }
 
-    // 1) embed query
-    const [[...qvec]] = await EmbeddingService.generateEmbeddings([query]); // STATIC (fix)
+    const [[...qvec]] = await EmbeddingService.generateEmbeddings([query]);
 
-    // 2) call RPC for vector similarity (create SQL function below)
-    const sb = supabase();
+    const sb = adminClient();
     const { data, error } = await sb.rpc("match_document_chunks", {
       p_user_id: userId,
       p_query_embedding: qvec as unknown as number[],
@@ -43,4 +39,4 @@ r.post("/search", /* authRequired, */ async (req: Request, res) => {
   }
 });
 
-export default r;
+export default router;
