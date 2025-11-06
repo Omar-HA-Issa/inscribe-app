@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { FileUpload } from "../components/FileUpload";
 import { Header } from "../components/Header";
 import { Summary } from "../components/sections/Summary";
@@ -10,6 +11,7 @@ import { Chat } from "../components/sections/Chat";
 import { Sidebar } from "../components/sections/Sidebar";
 import { uploadDocument } from "../lib/apiClient.ts";
 import { useToast } from "../hooks/use-toast";
+import { useAuth } from "../contexts/AuthContext";
 
 const Index = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -19,6 +21,8 @@ const Index = () => {
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const { toast } = useToast();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const savedFileName = localStorage.getItem("currentFileName");
@@ -85,6 +89,34 @@ const Index = () => {
     setSelectedDocs([]);
   };
 
+  const handleLogout = async () => {
+    try {
+      // Clear document state
+      localStorage.removeItem("currentFileName");
+      localStorage.removeItem("currentDocumentId");
+      localStorage.removeItem("activeTab");
+
+      // Call logout from AuthContext (clears tokens)
+      await logout();
+
+      // Show success message
+      toast({
+        title: "Logged out successfully",
+        description: "See you next time!",
+      });
+
+      // Redirect to login
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast({
+        title: "Logout failed",
+        description: "There was an issue logging out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const renderSection = () => {
     switch (activeTab) {
       case "summary":
@@ -136,6 +168,7 @@ const Index = () => {
         onTabChange={setActiveTab}
         fileName={fileName || file.name}
         onChangeDocument={handleChangeDocument}
+        onLogout={handleLogout}
       />
 
       {/* Remove max-width container so Chat can span full width */}

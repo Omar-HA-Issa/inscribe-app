@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import Lottie from "lottie-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import animationData from "@/assets/animations/loading.json";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -45,80 +45,116 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-background">
+    <div className="min-h-screen flex bg-background">
+      {/* Left Side - Login Form */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.6 }}
+        className="flex-1 flex items-center justify-center px-12 py-12"
       >
-        <Button
-          variant="ghost"
-          onClick={() => navigate("/")}
-          className="mb-6 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to home
-        </Button>
+        <div className="w-full max-w-md space-y-8">
+          {/* Logo */}
+          <div className="space-y-2">
+            <h1
+              className="text-3xl font-semibold tracking-tight text-foreground"
+              style={{ textShadow: '0 0 12px rgba(211,211,211,0.4)' }}
+            >
+              DocuMind
+            </h1>
+            <p className="text-muted-foreground">Sign in to continue your journey</p>
+          </div>
 
-        <Card className="panel-glow">
-          <CardHeader className="space-y-4 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Sparkles className="w-8 h-8 text-accent" />
-              <span className="text-2xl font-semibold text-foreground">DocuMind</span>
-            </div>
-            <CardTitle className="text-2xl">Welcome back</CardTitle>
-            <CardDescription>Sign in to your account to continue</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
-                  <Link
-                    to="/forgot-password"
-                    className="text-sm text-accent hover:text-accent/80 transition-colors"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              <Button
-                type="submit"
-                className="w-full bg-accent hover:bg-accent/80 text-foreground"
-                disabled={isLoading}
+          {/* Login Form */}
+          <form onSubmit={handleLogin} className="space-y-6 mt-12">
+            <div className="space-y-2">
+              <Label
+                htmlFor="email"
+                className="text-sm font-medium text-muted-foreground"
               >
-                {isLoading ? "Signing in..." : "Sign in"}
-              </Button>
-            </form>
-            <div className="mt-6 text-center text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link to="/signup" className="text-accent hover:text-accent/80 transition-colors">
-                Sign up
-              </Link>
+                Email Address
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading}
+                className="h-12 bg-background/50 border-border/50 focus:border-border transition-all placeholder:text-muted-foreground/50"
+              />
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label
+                  htmlFor="password"
+                  className="text-sm font-medium text-muted-foreground"
+                >
+                  Password
+                </Label>
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={isLoading}
+                className="h-12 bg-background/50 border-border/50 focus:border-border transition-all"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-12 bg-foreground/10 hover:bg-foreground/20 text-foreground border-0 transition-all hover:shadow-glow"
+            >
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
+                  Signing in...
+                </span>
+              ) : (
+                "Sign in"
+              )}
+            </Button>
+          </form>
+
+          {/* Sign up link */}
+          <div className="text-center text-sm">
+            <span className="text-muted-foreground">Don't have an account? </span>
+            <Link
+              to="/signup"
+              className="text-foreground hover:text-foreground/80 font-medium transition-colors"
+            >
+              Sign up
+            </Link>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Right Side - Lottie Animation */}
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
+        className="hidden lg:flex flex-1 items-center justify-center p-12 bg-background/30"
+      >
+        <div className="w-full max-w-xl">
+          <Lottie
+            animationData={animationData}
+            loop={true}
+            style={{ width: '100%', height: 'auto' }}
+          />
+        </div>
       </motion.div>
     </div>
   );

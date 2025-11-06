@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { anonServerClient } from "../lib/supabase";
+import { anonServerClient, adminClient } from "../lib/supabase";
 import { requireAuth } from "../middleware/authMiddleware";
 
 const router = Router();
@@ -73,6 +73,43 @@ router.post("/forgot-password", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to send password reset email" });
+  }
+});
+
+router.post("/reset-password", requireAuth, async (req, res) => {
+  const passwordSchema = z.object({ password: z.string().min(8) });
+  const p = passwordSchema.safeParse(req.body);
+
+  if (!p.success) {
+    return res.status(400).json({ error: "Password must be at least 8 characters" });
+  }
+
+  try {
+    // Get the user ID from the authenticated request
+    const userId = req.authUserId;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    // Use admin client to update user password
+    const { data, error } = await adminClient().auth.admin.updateUserById(
+      userId,
+      { password: p.data.password }
+    );
+
+    if (error) {
+      console.error("Password update error:", error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({
+      success: true,
+      message: "Password updated successfully"
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ error: "Failed to reset password" });
   }
 });
 

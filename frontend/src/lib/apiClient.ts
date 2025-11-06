@@ -112,6 +112,25 @@ export async function resetPasswordRequest(email: string): Promise<{ success: bo
   return res.json();
 }
 
+/** POST /api/reset-password - Reset password with token */
+export async function resetPassword(accessToken: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_URL}/api/reset-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ password: newPassword }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to reset password");
+  }
+
+  return res.json();
+}
+
 // =====================
 // Helper Functions
 // =====================

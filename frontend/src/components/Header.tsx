@@ -1,10 +1,12 @@
-import { Clock } from "lucide-react";
+import { Settings, LogOut } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 
 interface HeaderProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   fileName?: string;
   onChangeDocument: () => void;
+  onLogout?: () => void;
 }
 
 const tabs = [
@@ -16,7 +18,32 @@ const tabs = [
   { id: "chat", label: "Chat" },  // Added Chat tab
 ];
 
-export const Header = ({ activeTab, onTabChange, fileName, onChangeDocument }: HeaderProps) => {
+export const Header = ({ activeTab, onTabChange, fileName, onChangeDocument, onLogout }: HeaderProps) => {
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+        setIsSettingsOpen(false);
+      }
+    };
+
+    if (isSettingsOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isSettingsOpen]);
+
+  const handleLogout = () => {
+    setIsSettingsOpen(false);
+    onLogout?.();
+  };
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-glass bg-background/80">
       <div className="container mx-auto px-6 py-4">
@@ -64,9 +91,29 @@ export const Header = ({ activeTab, onTabChange, fileName, onChangeDocument }: H
                 </button>
               </>
             )}
-            <button className="p-2 hover:shadow-glow rounded-lg transition-all">
-              <Clock className="w-4 h-4 text-muted-foreground" />
-            </button>
+
+            {/* Settings Dropdown */}
+            <div className="relative" ref={settingsRef}>
+              <button
+                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                className="p-2 hover:shadow-glow rounded-lg transition-all"
+              >
+                <Settings className="w-4 h-4 text-muted-foreground" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isSettingsOpen && (
+                <div className="absolute right-0 mt-2 w-48 backdrop-blur-glass bg-background/95 border border-border rounded-lg shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-accent/10 transition-all"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

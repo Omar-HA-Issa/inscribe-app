@@ -2,10 +2,10 @@
   "name": "documind-backend",
   "version": "1.0.0",
   "type": "module",
-  "scripts": {
+   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node --env-file=.env dist/index.js"
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@langchain/openai": "^0.0.14",

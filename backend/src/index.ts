@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
-import cors from 'cors';
+import cors from 'cors'
 import uploadRoutes from './routes/upload';
 import searchRoutes from './routes/search';
 import chatRoutes from './routes/chat';

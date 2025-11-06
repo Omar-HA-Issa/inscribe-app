@@ -23,10 +23,7 @@ export default function ForgotPassword() {
       const response = await resetPasswordRequest(email);
 
       setEmailSent(true);
-      toast({
-        title: "Email sent!",
-        description: response.message || "Check your email for a password reset link",
-      });
+      // Success page shows the message, no need for toast
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Password reset request failed";
 
