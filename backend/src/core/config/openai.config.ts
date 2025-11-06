@@ -19,4 +19,4 @@ if (!/^sk-(proj|live)-/.test(OPENAI_API_KEY)) {
   );
 }
 
-export const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+export const openaiConfig = new OpenAI({ apiKey: OPENAI_API_KEY });

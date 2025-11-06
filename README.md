@@ -4,7 +4,7 @@
 
 > Discover what your documents hide beneath the surface
 
-DocuMind is a RAG (Retrieval-Augmented Generation) powered document analysis platform that helps you upload, analyze, and chat with your documents using AI. Extract insights, detect patterns, and uncover hidden information across your document collection.
+DocuMind is a RAG (Retrieval-Augmented Generation) powered document analysis platform that helps you uploadRoutes, analyze, and chat with your documents using AI. Extract insights, detect patterns, and uncover hidden information across your document collection.
 
 ---
 
@@ -126,7 +126,7 @@ DocuMind is a RAG (Retrieval-Augmented Generation) powered document analysis pla
 docu-mind-app/
 ├── backend/                 # Express.js backend
 │   ├── src/
-│   │   ├── routes/         # API routes (upload, chat, etc.)
+│   │   ├── routes/         # API routes (uploadRoutes, chat, etc.)
 │   │   ├── services/       # Business logic (RAG, embeddings)
 │   │   ├── utils/          # Helper functions
 │   │   └── index.ts        # Entry point
@@ -154,7 +154,7 @@ docu-mind-app/
 ### Phase 1 - MVP (Weeks 1-2)
 
 - [x] **Day 1:** Project setup & database schema 
-- [ ] **Day 2-3:** Document upload & parsing API
+- [ ] **Day 2-3:** Document uploadRoutes & parsing API
 - [ ] **Day 4-5:** Document chunking & embeddings
 - [ ] **Day 6-7:** Vector search & basic RAG
 - [ ] **Day 8-9:** Chat interface UI
@@ -178,7 +178,7 @@ docu-mind-app/
 - ✅ Clean, professional UI with dark mode
 - ✅ Database infrastructure with vector search
 - ✅ Backend API foundation
-- 🚧 Document upload (PDF, TXT, CSV)
+- 🚧 Document uploadRoutes (PDF, TXT, CSV)
 - 🚧 AI-powered summarization
 - 🚧 Chat with documents using RAG
 

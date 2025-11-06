@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SearchService, type SearchResult } from "./searchService";
-import { openai } from "../config/openai";
+import { SearchService, type SearchResult } from "./search.service";
+import { openaiConfig } from "../config/openai.config";
 
 export interface ChatSource {
   document: string;
@@ -87,7 +87,7 @@ export class ChatService {
         ? "You are a helpful assistant that compares and contrasts documents. When comparing documents, clearly identify which information comes from which document. Provide a structured comparison highlighting key differences and similarities."
         : "You are a helpful assistant that answers questions based on provided document excerpts. Always cite which document your information comes from.";
 
-      const completion = await openai.chat.completions.create({
+      const completion = await openaiConfig.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -165,7 +165,7 @@ export class ChatService {
       const limitedChunks = chunks.slice(0, maxChunks);
       const fullText = limitedChunks.map((c) => c.content).join("\n\n");
 
-      const completion = await openai.chat.completions.create({
+      const completion = await openaiConfig.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {

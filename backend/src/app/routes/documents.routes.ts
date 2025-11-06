@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/authMiddleware";
-import { adminClient } from "../lib/supabase";
+import { requireAuth } from "../middleware/auth.middleware";
+import { adminClient } from "../../core/clients/supabaseClient";
 
 const router = Router();
 router.use(requireAuth);

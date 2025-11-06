@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { openai } from "../config/openai";
-import { getSupabase, supabaseForUser } from "../config/supabase";
+import { openaiConfig } from "../config/openai.config";
+import { getSupabase, supabaseForUser } from "../config/supabase.config";
 
 export interface SearchResult {
   chunk_id: string;
@@ -14,7 +14,7 @@ export interface SearchResult {
 export class SearchService {
   /** Embed a user query (used by vector search) */
   static async embedQuery(query: string): Promise<number[]> {
-    const resp = await openai.embeddings.create({
+    const resp = await openaiConfig.embeddings.create({
       model: "text-embedding-3-small",
       input: query,
     });

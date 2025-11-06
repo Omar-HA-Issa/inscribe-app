@@ -1,8 +1,8 @@
 import { Router } from "express";
 import type { Request } from "express";
-import { EmbeddingService } from "../services/embeddingService";
-import {adminClient} from "../lib/supabase";
-import { requireAuth  } from "../middleware/authMiddleware";
+import { EmbeddingService } from "../../core/services/embedding.service";
+import {adminClient} from "../../core/clients/supabaseClient";
+import { requireAuth  } from "../middleware/auth.middleware";
 
 const router = Router();
 router.use(requireAuth);

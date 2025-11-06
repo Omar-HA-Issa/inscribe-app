@@ -1,11 +1,11 @@
 import { Router } from "express";
 import multer from "multer";
 import type { Request } from "express";
-import { EmbeddingService } from "../services/embeddingService";
-import { requireAuth  } from "../middleware/authMiddleware";
-import { ChunkingService } from "../services/chunkingService";
-import { FileParser } from "../services/fileParser";
-import { adminClient } from "../lib/supabase";
+import { EmbeddingService } from "../../core/services/embedding.service";
+import { requireAuth  } from "../middleware/auth.middleware";
+import { ChunkingService } from "../../core/services/chunking.service";
+import { FileParserService } from "../../core/services/fileParser.service";
+import { adminClient } from "../../core/clients/supabaseClient";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -13,7 +13,7 @@ import os from "os";
 const router = Router();
 router.use(requireAuth);
 
-const upload = multer({
+const uploadRoutes = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
 });
@@ -38,7 +38,7 @@ async function embedInBatches(texts: string[], batchSize: number = 64): Promise<
 
 /** Parse file and chunk the text */
 async function normalizeChunksFromFile(file: Express.Multer.File): Promise<Chunk[]> {
-  // ✅ Step 1: Save buffer to temp file (FileParser needs a file path)
+  // ✅ Step 1: Save buffer to temp file (FileParserService needs a file path)
   const tempDir = os.tmpdir();
   const tempFilePath = path.join(tempDir, `upload-${Date.now()}-${file.originalname}`);
 
@@ -46,7 +46,7 @@ async function normalizeChunksFromFile(file: Express.Multer.File): Promise<Chunk
     await fs.writeFile(tempFilePath, file.buffer);
 
     // ✅ Step 2: Parse the file to extract text
-    const text = await FileParser.parseFile(tempFilePath, file.mimetype);
+    const text = await FileParserService.parseFile(tempFilePath, file.mimetype);
 
     if (!text || text.trim().length === 0) {
       throw new Error("No text content found in file");
@@ -78,7 +78,7 @@ async function normalizeChunksFromFile(file: Express.Multer.File): Promise<Chunk
 
 router.post(
   "/upload",
-  upload.single("file"),
+  uploadRoutes.single("file"),
   async (req: Request, res) => {
     try {
       if (!req.file) {
@@ -178,7 +178,7 @@ router.post(
         },
       });
     } catch (err: any) {
-      console.error("Error processing upload:", err?.message || err);
+      console.error("Error processing uploadRoutes:", err?.message || err);
       console.error("Error stack:", err?.stack || err);
       const msg = err?.message || "Upload failed. Please try again.";
       return res.status(500).json({ success: false, message: msg });

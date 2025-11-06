@@ -21,7 +21,7 @@ class ApiClient {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }), // ✅ Add Bearer token!
+        ...(token && { 'Authorization': `Bearer ${token}` }),
         ...options.headers,
       },
     };

@@ -1,8 +1,8 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { requireAuth } from "../middleware/authMiddleware";
-import { ChatService } from "../services/chatService";
-import { adminClient } from "../lib/supabase";
+import { requireAuth } from "../middleware/auth.middleware";
+import { ChatService } from "../../core/services/chat.service";
+import { adminClient } from "../../core/clients/supabaseClient";
 
 const router = Router();
 router.use(requireAuth);

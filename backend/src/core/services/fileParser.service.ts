@@ -3,7 +3,7 @@ import { PDFExtract } from 'pdf.js-extract';
 import mammoth from 'mammoth';
 import fs from 'fs/promises';
 
-export class FileParser {
+export class FileParserService {
   /**
    * Parse different file types and extract text content
    */
