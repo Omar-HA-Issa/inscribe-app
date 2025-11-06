@@ -7,7 +7,7 @@ import {AuthProvider} from "../features/auth/context/AuthContext.tsx";
 import ProtectedRoute from "../shared/components/ProtectedRoute.tsx";
 
 // Pages
-import Index from "../features/auth/pages/Index.tsx";
+import Index from "../features/index";
 import NotFound from "../features/auth/pages/NotFound.tsx";
 import Login from "../features/auth/pages/Login.tsx";
 import Signup from "../features/auth/pages/Signup.tsx";

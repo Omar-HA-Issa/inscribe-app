@@ -29,7 +29,7 @@ export default function Login() {
         description: "Successfully logged in to your account",
       });
 
-      // Redirect to dashboard or home
+      // Redirect to dashboard or index
       navigate("/");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Login failed";

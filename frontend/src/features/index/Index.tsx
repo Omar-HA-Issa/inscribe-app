@@ -1,17 +1,17 @@
 import {useEffect, useState} from "react";
 import {useNavigate} from "react-router-dom";
-import {FileUpload} from "../../../shared/components/FileUpload.tsx";
-import {Header} from "../../../shared/components/Header.tsx";
-import {Summary} from "../../documents/pages/Summary.tsx";
-import {Insights} from "../../documents/pages/Insights.tsx";
-import {Contradictions} from "../../documents/pages/Contradictions.tsx";
-import {Visuals} from "../../documents/pages/Visuals.tsx";
-import {Report} from "../../documents/pages/Report.tsx";
-import {Chat} from "../../chat/Chat.tsx";
-import {Sidebar} from "../../chat/Sidebar.tsx";
+import {FileUpload} from "../../shared/components/FileUpload.tsx";
+import {Header} from "../../shared/components/Header.tsx";
+import {Summary} from "../pages/documents/Summary.tsx";
+import {Insights} from "../pages/documents/Insights.tsx";
+import {Contradictions} from "../pages/documents/Contradictions.tsx";
+import {Visuals} from "../pages/documents/Visuals.tsx";
+import {Report} from "../pages/documents/Report.tsx";
+import {Chat} from "../pages/chat/Chat.tsx";
+import {Sidebar} from "../pages/chat/Sidebar.tsx";
 import {uploadDocument} from "@/shared/lib/apiClient.ts";
 import {useToast} from "@/shared/hooks/use-toast.ts";
-import {useAuth} from "../context/AuthContext.tsx";
+import {useAuth} from "../auth/context/AuthContext.tsx";
 
 const Index = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -20,6 +20,7 @@ const Index = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
+  const [showUploadPage, setShowUploadPage] = useState(false);
   const { toast } = useToast();
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -48,6 +49,7 @@ const Index = () => {
     setIsAnalyzing(true);
     setFile(selectedFile);
     setFileName(selectedFile.name);
+    setShowUploadPage(false);
 
     try {
       const response = await uploadDocument(selectedFile);
@@ -79,14 +81,11 @@ const Index = () => {
   };
 
   const handleChangeDocument = () => {
-    localStorage.removeItem("currentFileName");
-    localStorage.removeItem("currentDocumentId");
-    localStorage.removeItem("activeTab");
-    setFile(null);
-    setFileName(null);
-    setDocumentId(null);
-    setActiveTab("summary");
-    setSelectedDocs([]);
+    setShowUploadPage(true);
+  };
+
+  const handleBackToDocument = () => {
+    setShowUploadPage(false);
   };
 
   const handleLogout = async () => {
@@ -145,7 +144,16 @@ const Index = () => {
     }
   };
 
-  if (!file) return <FileUpload onFileSelect={handleFileSelect} />;
+  // Show upload page if no file OR if user clicked "Change Document"
+  if (!file || showUploadPage) {
+    return (
+      <FileUpload
+        onFileSelect={handleFileSelect}
+        hasExistingDocument={!!file && showUploadPage}
+        onBackToDocument={file && showUploadPage ? handleBackToDocument : undefined}
+      />
+    );
+  }
 
   if (isAnalyzing) {
     return (

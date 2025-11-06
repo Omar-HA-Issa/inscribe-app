@@ -171,7 +171,7 @@ export class ChatService {
           {
             role: "system",
             content:
-              "You are a helpful assistant that creates concise, informative summaries of documents. Focus on the main points, key findings, and important details.",
+              "You are a helpful assistant that creates concise, informative summaries of documents. Focus on the index points, key findings, and important details.",
           },
           {
             role: "user",

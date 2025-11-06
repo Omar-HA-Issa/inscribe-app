@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from "react";
 import {AnimatePresence, motion} from "framer-motion";
 import {Textarea} from "@/shared/ui/textarea.tsx";
 import {AlertCircle, Bot, Copy, Send, Sparkles, User} from "lucide-react";
-import {chatApi} from "@/features/chat/api/chatApi.ts";
+import {chatApi} from "@/features/pages/chat/api/chatApi.ts";
 import {useToast} from "@/shared/hooks/use-toast.ts";
 import ReactMarkdown from "react-markdown";
 
@@ -19,7 +19,7 @@ interface ChatProps {
 }
 
 const SUGGESTED_QUESTIONS = [
-  "What are the main topics in these documents?",
+  "What are the index topics in these documents?",
   "Summarize the key findings",
   "Compare the documents",
   "Explain the methodology",

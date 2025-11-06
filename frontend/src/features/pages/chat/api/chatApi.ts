@@ -1,4 +1,4 @@
-import {api} from '../../../shared/lib/api.ts';
+import {api} from '../../../../shared/lib/api.ts';
 
 export interface ChatSource {
   document: string;
