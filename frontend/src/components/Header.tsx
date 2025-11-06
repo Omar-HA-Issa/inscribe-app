@@ -1,5 +1,6 @@
 import { Settings, LogOut } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import Logo from "@/assets/images/DocuMind_Logo.png";
 
 interface HeaderProps {
   activeTab: string;
@@ -15,28 +16,30 @@ const tabs = [
   { id: "contradictions", label: "Contradictions" },
   { id: "visuals", label: "Visuals" },
   { id: "report", label: "Report" },
-  { id: "chat", label: "Chat" },  // Added Chat tab
+  { id: "chat", label: "Chat" },
 ];
 
-export const Header = ({ activeTab, onTabChange, fileName, onChangeDocument, onLogout }: HeaderProps) => {
+export const Header = ({
+  activeTab,
+  onTabChange,
+  fileName,
+  onChangeDocument,
+  onLogout,
+}: HeaderProps) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+      if (
+        settingsRef.current &&
+        !settingsRef.current.contains(event.target as Node)
+      ) {
         setIsSettingsOpen(false);
       }
     };
-
-    if (isSettingsOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    if (isSettingsOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isSettingsOpen]);
 
   const handleLogout = () => {
@@ -48,13 +51,24 @@ export const Header = ({ activeTab, onTabChange, fileName, onChangeDocument, onL
     <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-glass bg-background/80">
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-          {/* Logo */}
+          {/* Logo + Tabs */}
           <div className="flex items-center gap-8">
-            <span className="text-lg font-semibold tracking-tight text-foreground" style={{ textShadow: '0 0 8px rgba(211,211,211,0.3)' }}>
-              DocuMind
-            </span>
+            {/* ✅ Added logo to the left of DocuMind */}
+            <div className="flex items-center gap-2">
+              <img
+                src={Logo}
+                alt="DocuMind Logo"
+                className="w-7 h-7 object-contain"
+              />
+              <span
+                className="text-lg font-semibold tracking-tight text-foreground"
+                style={{ textShadow: "0 0 8px rgba(211,211,211,0.3)" }}
+              >
+                DocuMind
+              </span>
+            </div>
 
-            {/* Tabs - beside logo */}
+            {/* Tabs beside logo */}
             <nav className="flex items-center gap-1">
               {tabs.map((tab) => (
                 <button
@@ -75,7 +89,7 @@ export const Header = ({ activeTab, onTabChange, fileName, onChangeDocument, onL
             </nav>
           </div>
 
-          {/* File Info */}
+          {/* File info + Settings */}
           <div className="flex items-center gap-4 text-sm">
             {fileName && (
               <>
@@ -92,7 +106,6 @@ export const Header = ({ activeTab, onTabChange, fileName, onChangeDocument, onL
               </>
             )}
 
-            {/* Settings Dropdown */}
             <div className="relative" ref={settingsRef}>
               <button
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
@@ -101,7 +114,6 @@ export const Header = ({ activeTab, onTabChange, fileName, onChangeDocument, onL
                 <Settings className="w-4 h-4 text-muted-foreground" />
               </button>
 
-              {/* Dropdown Menu */}
               {isSettingsOpen && (
                 <div className="absolute right-0 mt-2 w-48 backdrop-blur-glass bg-background/95 border border-border rounded-lg shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                   <button
