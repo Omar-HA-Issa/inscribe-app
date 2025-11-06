@@ -88,6 +88,25 @@ const Index = () => {
     setShowUploadPage(false);
   };
 
+  const handleSelectExistingDocument = (documentId: string, fileName: string) => {
+    // Set the document info
+    setDocumentId(documentId);
+    setFileName(fileName);
+
+    // Create a fake file object for state management
+    const fakeFile = new File([], fileName);
+    setFile(fakeFile);
+
+    // Hide upload page and show document analysis
+    setShowUploadPage(false);
+    setActiveTab("summary");
+
+    toast({
+      title: "Document loaded",
+      description: `Viewing ${fileName}`,
+    });
+  };
+
   const handleLogout = async () => {
     try {
       // Clear document state
@@ -151,6 +170,7 @@ const Index = () => {
         onFileSelect={handleFileSelect}
         hasExistingDocument={!!file && showUploadPage}
         onBackToDocument={file && showUploadPage ? handleBackToDocument : undefined}
+        onSelectExistingDocument={handleSelectExistingDocument}
       />
     );
   }
