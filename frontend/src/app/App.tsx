@@ -7,13 +7,14 @@ import {AuthProvider} from "../features/auth/context/AuthContext.tsx";
 import ProtectedRoute from "../shared/components/ProtectedRoute.tsx";
 
 // Pages
-import Index from "../features/index";
+import Index from "../features/index/Index.tsx";
 import NotFound from "../features/auth/pages/NotFound.tsx";
 import Login from "../features/auth/pages/Login.tsx";
 import Signup from "../features/auth/pages/Signup.tsx";
 import SignupSuccess from "../features/auth/pages/SignupSuccess.tsx";
 import ForgotPassword from "../features/auth/pages/ForgotPassword.tsx";
 import ResetPassword from "../features/auth/pages/ResetPassword.tsx";
+import AuthConfirm from '../features/auth/pages/AuthConfirm.tsx';
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/signup-success" element={<SignupSuccess />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/auth/confirm" element={<AuthConfirm />} />
 
             {/* Protected routes - require authentication */}
             <Route
