@@ -73,7 +73,7 @@ export default function DocumentLayout() {
     { id: "summary", label: "Summary" },
     { id: "insights", label: "Insights" },
     { id: "contradictions", label: "Contradictions" },
-    { id: "visuals", label: "Visuals" },
+    // { id: "visuals", label: "Visuals" },
     { id: "report", label: "Report" },
     { id: "chat", label: "Chat" },
   ];
