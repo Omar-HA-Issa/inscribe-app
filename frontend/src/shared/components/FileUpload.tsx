@@ -180,24 +180,25 @@ export const FileUpload = ({
       )}
 
       <div className="text-center mb-12">
-        <h1 className="text-5xl font-semibold tracking-tight mb-4" style={{ textShadow: '0 0 12px rgba(211,211,211,0.3)' }}>
+        <h1 className="text-5xl font-semibold tracking-tight mb-4"
+            style={{textShadow: '0 0 12px rgba(211,211,211,0.3)'}}>
           DocuMind
         </h1>
         <p className="text-muted-foreground text-lg">
-          Discover what your documents hide beneath the surface
+          Upload a document or select from your library to get started
         </p>
       </div>
 
       {!showLibrary ? (
-        <div className="w-full max-w-4xl space-y-6">
-          {/* Upload New Document */}
-          <div
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            className={cn(
-              "relative p-16 rounded-2xl transition-all cursor-pointer",
-              "bg-card shadow-card hover:shadow-hover",
+          <div className="w-full max-w-4xl space-y-6">
+            {/* Upload New Document */}
+            <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                className={cn(
+                    "relative p-16 rounded-2xl transition-all cursor-pointer",
+                    "bg-card shadow-card hover:shadow-hover",
               isDragging ? "shadow-glow" : ""
             )}
           >

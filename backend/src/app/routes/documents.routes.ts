@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.middleware";
 import { adminClient } from "../../core/clients/supabaseClient";
+import { getSummary } from "../../core/services/summary.service";
 
 const router = Router();
 router.use(requireAuth);
@@ -27,9 +28,33 @@ router.get("/documents", async (req, res) => {
     }
 
     res.json({ documents: data || [] });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Error in /documents route:", err);
     res.status(500).json({ error: "Failed to fetch documents" });
+  }
+});
+
+// GET /api/documents/:id/summary - Get or generate document summary
+router.get("/documents/:id/summary", async (req, res) => {
+  try {
+    const userId = req.authUserId;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { id } = req.params;
+    const forceRegenerate = req.query.regenerate === "true";
+
+    const summary = await getSummary(id, userId, forceRegenerate);
+
+    res.json({ success: true, summary });
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "Failed to generate summary";
+    console.error("Error generating summary:", err);
+    res.status(500).json({
+      error: "Failed to generate summary",
+      message: errorMessage
+    });
   }
 });
 
@@ -68,7 +93,7 @@ router.delete("/documents/:id", async (req, res) => {
     }
 
     res.json({ success: true, message: "Document deleted" });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Delete error:", err);
     res.status(500).json({ error: "Delete failed" });
   }

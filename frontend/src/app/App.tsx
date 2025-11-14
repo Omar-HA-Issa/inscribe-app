@@ -2,11 +2,11 @@ import {Toaster} from "@/shared/ui/toaster.tsx";
 import {Toaster as Sonner} from "@/shared/ui/sonner.tsx";
 import {TooltipProvider} from "@/shared/ui/tooltip.tsx";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
-import {BrowserRouter, Route, Routes} from "react-router-dom";
+import {BrowserRouter, Route, Routes, Navigate} from "react-router-dom";
 import {AuthProvider} from "../features/auth/context/AuthContext.tsx";
 import ProtectedRoute from "../shared/components/ProtectedRoute.tsx";
 
-// Pages
+// Auth Pages
 import Index from "../features/index/Index.tsx";
 import NotFound from "../features/auth/pages/NotFound.tsx";
 import Login from "../features/auth/pages/Login.tsx";
@@ -15,6 +15,29 @@ import SignupSuccess from "../features/auth/pages/SignupSuccess.tsx";
 import ForgotPassword from "../features/auth/pages/ForgotPassword.tsx";
 import ResetPassword from "../features/auth/pages/ResetPassword.tsx";
 import AuthConfirm from '../features/auth/pages/AuthConfirm.tsx';
+
+// Document Layout & Pages
+import DocumentLayout from '../features/pages/documents/DocumentLayout.tsx';
+import { Summary } from '../features/pages/documents/Summary.tsx';
+import { Insights } from '../features/pages/documents/Insights.tsx';
+import { Contradictions } from '../features/pages/documents/Contradictions.tsx';
+import { Visuals } from '../features/pages/documents/Visuals.tsx';
+import { Report } from '../features/pages/documents/Report.tsx';
+// Import Chat if you have it, otherwise create a placeholder:
+// import { Chat } from '../features/pages/chat/Chat.tsx';
+
+// Placeholder Chat component (remove this if you have a real Chat component)
+const Chat = () => (
+  <div className="space-y-8">
+    <div>
+      <h2 className="text-3xl font-semibold mb-2 lowercase">chat</h2>
+      <p className="text-muted-foreground">Ask questions about your document</p>
+    </div>
+    <div className="bg-card rounded-xl p-8 shadow-card">
+      <p className="text-muted-foreground text-center">Chat feature coming soon...</p>
+    </div>
+  </div>
+);
 
 const queryClient = new QueryClient();
 
@@ -43,6 +66,27 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
+            {/* Document routes with nested layout */}
+            <Route
+              path="/documents/:id"
+              element={
+                <ProtectedRoute>
+                  <DocumentLayout />
+                </ProtectedRoute>
+              }
+            >
+              {/* Default redirect to summary tab */}
+              <Route index element={<Navigate to="summary" replace />} />
+
+              {/* All document tab routes */}
+              <Route path="summary" element={<Summary />} />
+              <Route path="insights" element={<Insights />} />
+              <Route path="contradictions" element={<Contradictions />} />
+              <Route path="visuals" element={<Visuals />} />
+              <Route path="report" element={<Report />} />
+              <Route path="chat" element={<Chat />} />
+            </Route>
 
             {/* 404 - Not Found */}
             <Route path="*" element={<NotFound />} />

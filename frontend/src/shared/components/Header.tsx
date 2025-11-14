@@ -49,20 +49,20 @@ export const Header = ({
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-glass bg-background/80">
-      <div className="container mx-auto px-6 py-4">
+      <div className="container mx-auto px-2 py-4">
         <div className="flex items-center justify-between">
           {/* Logo + Tabs */}
-          <div className="flex items-center gap-8">
-            {/* ✅ Added logo to the left of DocuMind */}
+          <div className="flex items-center gap-8 -ml-2">
+
             <div className="flex items-center gap-2">
               <img
-                src={Logo}
-                alt="DocuMind Logo"
-                className="w-7 h-7 object-contain"
+                  src={Logo}
+                  alt="DocuMind Logo"
+                  className="w-7 h-7 object-contain"
               />
               <span
-                className="text-lg font-semibold tracking-tight text-foreground"
-                style={{ textShadow: "0 0 8px rgba(211,211,211,0.3)" }}
+                  className="text-lg font-semibold tracking-tight text-foreground"
+                  style={{textShadow: "0 0 8px rgba(211,211,211,0.3)"}}
               >
                 DocuMind
               </span>
@@ -71,20 +71,20 @@ export const Header = ({
             {/* Tabs beside logo */}
             <nav className="flex items-center gap-1">
               {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => onTabChange(tab.id)}
-                  className={`px-4 py-2 text-sm font-medium transition-all relative ${
-                    activeTab === tab.id
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:brightness-110"
-                  }`}
-                >
-                  {tab.label}
-                  {activeTab === tab.id && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-active" />
-                  )}
-                </button>
+                  <button
+                      key={tab.id}
+                      onClick={() => onTabChange(tab.id)}
+                      className={`px-4 py-2 text-sm font-medium transition-all relative ${
+                          activeTab === tab.id
+                              ? "text-foreground"
+                              : "text-muted-foreground hover:text-foreground hover:brightness-110"
+                      }`}
+                  >
+                    {tab.label}
+                    {activeTab === tab.id && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-active"/>
+                    )}
+                  </button>
               ))}
             </nav>
           </div>
