@@ -7,6 +7,7 @@ import searchRoutes from "./app/routes/search.routes";
 import chatRoutes from "./app/routes/chat.routes";
 import authRoutes from "./app/routes/auth.routes";
 import documentsRoutes from "./app/routes/documents.routes";
+import insightsRoutes from './app/routes/insights.routes';
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use("/api", uploadRoutes);
 app.use("/api", searchRoutes);
 app.use("/api", chatRoutes);
 app.use("/api", documentsRoutes);
+app.use('/api/insights', insightsRoutes);
 
 // Test Supabase connection
 app.get("/api/test-db", async (req, res) => {
