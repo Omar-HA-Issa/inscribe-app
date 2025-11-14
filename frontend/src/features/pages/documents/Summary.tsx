@@ -119,7 +119,7 @@ export const Summary = () => {
             <div className="h-4 bg-muted rounded w-4/6"></div>
           </div>
           <p className="mt-4 text-sm text-muted-foreground text-center">
-            Generating summary... (may take 3-8 seconds)
+            Generating summary... (may take a few seconds)
           </p>
         </div>
 
