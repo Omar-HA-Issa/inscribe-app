@@ -13,9 +13,24 @@ import os from "os";
 const router = Router();
 router.use(requireAuth);
 
+// File upload limits
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain'
+];
+
 const uploadRoutes = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 },
+  limits: { fileSize: MAX_FILE_SIZE },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only PDF, DOCX, and TXT files are allowed.'));
+    }
+  }
 });
 
 /** Shape we'll use throughout this file for chunks */
@@ -28,11 +43,24 @@ type Chunk = {
 /** Batch embeddings to avoid a single huge request */
 async function embedInBatches(texts: string[], batchSize: number = 64): Promise<number[][]> {
   const out: number[][] = [];
+  const totalBatches = Math.ceil(texts.length / batchSize);
+
   for (let i = 0; i < texts.length; i += batchSize) {
+    const batchNum = Math.floor(i / batchSize) + 1;
     const slice: string[] = texts.slice(i, i + batchSize);
-    const vecs: number[][] = await EmbeddingService.generateEmbeddings(slice);
-    out.push(...vecs);
+
+    console.log(`🔄 Processing batch ${batchNum}/${totalBatches} (${slice.length} chunks)...`);
+
+    try {
+      const vecs: number[][] = await EmbeddingService.generateEmbeddings(slice);
+      out.push(...vecs);
+      console.log(`✅ Batch ${batchNum}/${totalBatches} complete`);
+    } catch (error) {
+      console.error(`❌ Batch ${batchNum} failed:`, error);
+      throw error;
+    }
   }
+
   return out;
 }
 
@@ -52,11 +80,14 @@ async function normalizeChunksFromFile(file: Express.Multer.File): Promise<Chunk
       throw new Error("No text content found in file");
     }
 
-    console.log(`📄 Extracted ${text.length} characters from ${file.originalname}`);
+    // Remove null bytes that cause PostgreSQL errors
+    const cleanText = text.replace(/\0/g, '');
+
+    console.log(`📄 Extracted ${cleanText.length} characters from ${file.originalname}`);
 
     // ✅ Step 3: Chunk the text
     const chunker = new ChunkingService();
-    const textChunks = await chunker.chunkText(text);
+    const textChunks = await chunker.chunkText(cleanText);
 
     // ✅ Step 4: Convert to our Chunk format
     const chunks: Chunk[] = textChunks.map((chunk) => ({
@@ -78,7 +109,28 @@ async function normalizeChunksFromFile(file: Express.Multer.File): Promise<Chunk
 
 router.post(
   "/upload",
-  uploadRoutes.single("file"),
+  (req, res, next) => {
+    uploadRoutes.single("file")(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: 'File too large. Maximum size is 10MB.'
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          message: err.message
+        });
+      } else if (err) {
+        return res.status(400).json({
+          success: false,
+          message: err.message
+        });
+      }
+      next();
+    });
+  },
   async (req: Request, res) => {
     try {
       if (!req.file) {
@@ -91,6 +143,15 @@ router.post(
       }
 
       const { originalname, mimetype, size } = req.file;
+
+      // Additional validation
+      if (size === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "File is empty. Please upload a file with content."
+        });
+      }
+
       console.log(`\n--- Upload received: ${originalname} (${size} bytes, ${mimetype}) ---`);
 
       console.time("chunking");
@@ -101,6 +162,10 @@ router.post(
         return res.status(400).json({ success: false, message: "No text content found to chunk" });
       }
       console.log(`✅ Created ${chunks.length} chunk(s)`);
+
+      // Log chunk size for debugging
+      const avgChunkSize = chunks.reduce((sum, c) => sum + c.text.length, 0) / chunks.length;
+      console.log(`📊 Average chunk size: ${Math.round(avgChunkSize)} characters`);
 
       const sb = adminClient();
       const { data: docIns, error: docErr } = await sb
@@ -128,11 +193,15 @@ router.post(
       const texts: string[] = chunks.map((c: Chunk) => c.text);
       const BATCH_SIZE = 64;
 
+      console.log(`⏳ Generating embeddings for ${texts.length} chunks in batches of ${BATCH_SIZE}...`);
+
       const vectors: number[][] =
         texts.length > BATCH_SIZE
           ? await embedInBatches(texts, BATCH_SIZE)
           : await EmbeddingService.generateEmbeddings(texts);
       console.timeEnd("embeddings");
+
+      console.log(`✅ Generated ${vectors.length} embeddings`);
 
       if (!vectors.length || vectors.length !== texts.length) {
         throw new Error("Failed to generate embeddings for all chunks");

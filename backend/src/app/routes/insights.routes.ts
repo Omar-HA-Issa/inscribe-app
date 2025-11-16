@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { generateDocumentInsights, generateCrossDocumentInsights } from '../../core/services/insights.service';
+import {
+  generateDocumentInsights,
+  generateCrossDocumentInsights,
+} from '../../core/services/insights.service';
 import { requireAuth } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -14,7 +17,12 @@ router.post('/document/:documentId', requireAuth, async (req: Request, res: Resp
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    console.log('🔍 Generating insights for document:', documentId, forceRegenerate ? '(force)' : '(cache-first)');
+    console.log(
+      '🔍 Generating insights for document:',
+      documentId,
+      forceRegenerate ? '(force)' : '(cache-first)'
+    );
+
     const result = await generateDocumentInsights(documentId, userId, forceRegenerate || false);
     return res.status(200).json(result);
   } catch (error: any) {
@@ -35,12 +43,20 @@ router.post('/cross-document', requireAuth, async (req: Request, res: Response) 
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
-      return res.status(400).json({ error: 'Document IDs array is required' });
+    if (!Array.isArray(documentIds) || documentIds.length === 0) {
+      return res.status(400).json({ error: 'documentIds must be a non-empty array' });
     }
 
-    console.log('🔍 Generating cross-document insights:', documentIds.length, forceRegenerate ? '(force)' : '(cache-first)');
-    const result = await generateCrossDocumentInsights(documentIds, userId, forceRegenerate || false);
+    console.log(
+      '🔍 Generating cross-document insights:',
+      documentIds.length,
+      forceRegenerate ? '(force)' : '(cache-first)'
+    );
+    const result = await generateCrossDocumentInsights(
+      documentIds,
+      userId,
+      forceRegenerate || false
+    );
     return res.status(200).json(result);
   } catch (error: any) {
     console.error('Error generating cross-document insights:', error);

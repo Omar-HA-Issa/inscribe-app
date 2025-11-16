@@ -35,12 +35,17 @@ export async function generateDocumentSummary(
       .single();
 
     if (docError || !document) {
+      console.error("❌ Document query error:", docError);
       throw new Error("Document not found or access denied");
     }
 
-    // 2. Check if summary already exists
+    // 2. If summary already exists, return it directly
     if (document.summary) {
-      return JSON.parse(document.summary);
+      try {
+        return JSON.parse(document.summary);
+      } catch (err) {
+        console.warn("⚠️ Failed to parse existing summary JSON, regenerating:", err);
+      }
     }
 
     // 3. Fetch document chunks (full text)
@@ -66,27 +71,37 @@ export async function generateDocumentSummary(
     }
 
     // 4. Combine chunks into full text
-    const fullText = chunks.map((c) => c.content).join("\n\n");
+    const fullText = (chunks as any[]).map((c: any) => c.content).join("\n\n");
 
     // Calculate metadata
     const wordCount = fullText.split(/\s+/).length;
     const readingTime = Math.ceil(wordCount / 200); // ~200 words per minute
 
-    // 5. Generate summary using OpenAI
+    // Limit how much text we send to the model while still capturing most of the document
+    const MAX_CHARS_FOR_SUMMARY = 40000;
+    const analysisText =
+      fullText.length > MAX_CHARS_FOR_SUMMARY
+        ? fullText.slice(0, MAX_CHARS_FOR_SUMMARY) +
+          "\n\n[Document truncated for analysis]"
+        : fullText;
+
+    // 5. Generate summary using OpenAI (general-purpose prompt)
     const prompt = `You are an expert document analyst. Analyze the following document and provide:
 
-1. A comprehensive 3-4 sentence overview that captures the main theme and purpose
-2. 4-6 key findings or main points (bullet points)
-3. 5-8 important keywords or phrases that represent core concepts
+1. A clear 3-4 sentence overview that captures the main theme and purpose.
+2. 4-6 key findings or main points (bullet points).
+3. 5-8 important keywords or phrases that represent core concepts.
+
+The document may be technical, academic, business, legal, or general-purpose. Focus on faithfully representing the content without adding external assumptions.
 
 Document to analyze:
-${fullText.slice(0, 12000)} ${fullText.length > 12000 ? "... [truncated for analysis]" : ""}
+${analysisText}
 
 Respond in JSON format:
 {
   "overview": "3-4 sentence overview here",
-  "keyFindings": ["finding 1", "finding 2", ...],
-  "keywords": ["keyword1", "keyword2", ...]
+  "keyFindings": ["finding 1", "finding 2", "..."],
+  "keywords": ["keyword1", "keyword2", "..."]
 }`;
 
     const completion = await openai.chat.completions.create({
@@ -100,6 +115,7 @@ Respond in JSON format:
         { role: "user", content: prompt },
       ],
       temperature: 0.3,
+      max_tokens: 1200,
       response_format: { type: "json_object" },
     });
 
@@ -116,7 +132,8 @@ Respond in JSON format:
       keywords: summaryData.keywords || [],
       metadata: {
         wordCount,
-        pageCount: document.metadata?.pages || Math.ceil(chunks.length / 3),
+        // fallback: rough page estimate if metadata.pages is missing
+        pageCount: document.metadata?.pages || Math.ceil((chunks as any[]).length / 3),
         readingTime,
       },
     };
@@ -153,7 +170,7 @@ export async function getSummary(
   try {
     const sb = adminClient();
 
-    // Check for existing summary
+    // Check for existing summary unless forcing regeneration
     if (!forceRegenerate) {
       const { data: document } = await sb
         .from("documents")

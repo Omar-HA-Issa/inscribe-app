@@ -1,5 +1,5 @@
-import OpenAI from 'openai';
-import { createClient } from '@supabase/supabase-js';
+import OpenAI from "openai";
+import { createClient } from "@supabase/supabase-js";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -10,11 +10,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+export type InsightCategory = "pattern" | "anomaly" | "opportunity" | "risk";
+
 export interface Insight {
   title: string;
   description: string;
-  confidence: 'High' | 'Medium' | 'Low';
-  category: 'risk' | 'opportunity' | 'anomaly' | 'pattern';
+  confidence: "High" | "Medium" | "Low";
+  category: InsightCategory | "correlation"; // we’ll filter correlation out later
   evidence: string[];
   impact: string;
 }
@@ -26,18 +28,27 @@ export interface InsightResponse {
   cached?: boolean;
 }
 
-// ---------- Helper to safely parse model output ----------
+// ---------- Helper: safe parsing ----------
 
-function safeParseInsightsResponse(responseText: string): Insight[] {
-  if (!responseText) return [];
+function safeParseInsightsResponse(raw: string): Insight[] {
+  if (!raw || !raw.trim()) {
+    console.warn("Empty AI response for insights");
+    return [];
+  }
 
-  let cleaned = responseText.trim();
-  console.log('Raw AI insights response:', cleaned);
+  console.log("=== GPT-4 RESPONSE DEBUG ===");
+  console.log("Response length:", raw.length);
+  console.log("First 500 chars:", raw.slice(0, 500));
+  console.log("Last 500 chars:", raw.slice(-500));
+  console.log("=== END DEBUG ===");
+
+  let cleaned = raw.trim();
+  console.log("Raw AI insights response length:", cleaned.length);
 
   // Strip ```json ... ``` or ``` ... ``` fences if they exist
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/m, '');
-    if (cleaned.endsWith('```')) {
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/m, "");
+    if (cleaned.endsWith("```")) {
       cleaned = cleaned.slice(0, -3);
     }
     cleaned = cleaned.trim();
@@ -46,18 +57,21 @@ function safeParseInsightsResponse(responseText: string): Insight[] {
   try {
     const parsed: any = JSON.parse(cleaned);
 
-    // Support both `[ {...} ]` and `{ "insights": [ {...} ] }`
+    // Support:
+    // 1) [ { ... }, { ... } ]
+    // 2) { "insights": [ ... ] }
     if (Array.isArray(parsed)) {
       return parsed as Insight[];
     }
+
     if (parsed && Array.isArray(parsed.insights)) {
       return parsed.insights as Insight[];
     }
 
-    console.error('Parsed JSON does not have expected shape:', parsed);
+    console.warn("Unexpected insights JSON structure. Returning empty array.");
     return [];
-  } catch (err) {
-    console.error('Failed to parse AI response as JSON:', err, '\nRaw:', responseText);
+  } catch (error) {
+    console.error("Failed to parse AI insights JSON:", error);
     return [];
   }
 }
@@ -68,113 +82,142 @@ async function analyzeDocumentWithAI(
   documentName: string,
   content: string
 ): Promise<Insight[]> {
-  const prompt = `
-You are an expert analyst reading a document. Your goal is to find NON-OBVIOUS insights that require deeper analysis.
+  // GPT-4o has large context; keep a buffer for prompt + response
+  const MAX_CONTENT_LENGTH = 100000;
+  const truncatedContent =
+    content.length > MAX_CONTENT_LENGTH
+      ? content.slice(0, MAX_CONTENT_LENGTH) +
+        "\n\n[Document truncated due to length...]"
+      : content;
 
-Document name: ${documentName || 'Untitled document'}
+  console.log(
+    `📊 Analyzing document with ${content.length} chars (${truncatedContent.length} sent to GPT-4)`
+  );
+
+  const prompt = `
+You are an expert document analyst. The document you will read could be an academic paper, a student report, a guide, a policy document, a business report, or any other non-fiction text.
+
+Your job is to extract NON-OBVIOUS insights that would be genuinely useful to someone who wants to understand, use, or improve this document.
+
+Document name: ${documentName || "Untitled document"}
 
 Document content:
-"""${content.slice(0, 20000)}"""
+"""${truncatedContent}"""
 
 CRITICAL INSTRUCTIONS:
-1. Go beyond surface-level observations - don't just repeat what's stated
-2. Find hidden patterns, connections between concepts, and implicit implications
-3. Identify contradictions, gaps, risks, or opportunities that aren't explicitly mentioned
-4. Connect multiple pieces of information to form new insights
-5. Analyze what's NOT said but implied
-6. Consider strategic, operational, and tactical implications
+1. You MUST return between 10 and 16 insights.
+2. Do NOT use the "correlation" category at all.
+3. Only use these categories:
+   - "pattern": recurring or emerging themes, behaviour, or structure in the document
+   - "anomaly": contradictions, blind spots, inconsistencies, or surprising elements
+   - "opportunity": chances to improve, extend, clarify, or apply the document’s ideas
+   - "risk": potential problems, weaknesses, limitations, or points of confusion
+4. Each insight must be clearly distinct from the others (no duplicates or near-duplicates).
+5. Each insight MUST be supported by specific evidence from the document (quotes, data points, or described sections).
+6. Write in clear, accessible language that would make sense to a smart reader who has not yet read the full document.
 
-Generate 8-12 insights across all 4 categories. Each insight should be:
-- NON-OBVIOUS: Requires analysis, not just reading
-- SPECIFIC: Use concrete details from the document
-- ACTIONABLE: Has clear implications
-
-Return ONLY valid JSON (no markdown, no explanation):
+Return ONLY valid JSON in this structure:
 
 [
   {
-    "title": "Specific, compelling insight title",
-    "description": "2-3 sentences explaining the insight with analytical depth. Connect multiple concepts. Explain WHY this matters.",
+    "title": "Short descriptive title of the insight",
+    "description": "2–4 sentence explanation of the insight and how it relates to the document",
     "confidence": "High" | "Medium" | "Low",
-    "category": "risk" | "opportunity" | "anomaly" | "pattern",
-    "evidence": ["Specific quote or data point", "Another supporting point", "Third piece of evidence"],
-    "impact": "2 sentences: What this means strategically and what actions it suggests"
+    "category": "pattern" | "anomaly" | "opportunity" | "risk",
+    "evidence": [
+      "Specific quote, data point, or section that supports this insight",
+      "You may include multiple short evidence items"
+    ],
+    "impact": "2 sentences explaining why this insight matters and how it could influence decisions, understanding, or further work related to this document."
   }
 ]
-
-Categories (aim for 2-3 insights per category):
-- risk: Hidden concerns, potential problems, or threats that need attention
-- opportunity: Untapped potential, strategic advantages, or growth areas to pursue
-- anomaly: Inconsistencies, contradictions, or unexpected gaps that need investigation
-- pattern: Recurring themes, relationships, or structures that reveal deeper meaning
 `;
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: "gpt-4o",
     messages: [
       {
-        role: 'system',
+        role: "system",
         content:
-          'You are an expert analyst who discovers non-obvious insights through deep analysis. Always respond with valid JSON only.',
+          "You are an expert document analyst. You find non-obvious, helpful insights in any kind of non-fiction document. Always return valid JSON only.",
       },
-      { role: 'user', content: prompt },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0.6,
+    max_tokens: 5500,
+  });
+
+  const responseText = completion.choices[0].message.content || "";
+  const parsed = safeParseInsightsResponse(responseText);
+
+  // Belt-and-suspenders: drop any stray 'correlation' category
+  const filtered = parsed.filter((i) => i.category !== "correlation");
+
+  return filtered;
+}
+
+async function analyzeCrossDocumentWithAI(
+  documents: {
+    name: string;
+    summary: string;
+    metadata?: Record<string, any>;
+  }[]
+): Promise<Insight[]> {
+  const prompt = `
+You are an expert analyst comparing multiple documents. You will receive a list of document summaries with optional metadata.
+
+Your task:
+- Identify cross-document insights that rely on comparing or combining information across documents.
+- Go beyond surface-level observations.
+- Each insight MUST reference which documents it comes from.
+
+Documents (JSON):
+${JSON.stringify(documents, null, 2)}
+
+CRITICAL INSTRUCTIONS:
+1. You MUST return between 8 and 15 insights.
+2. Do NOT use the "correlation" category at all.
+3. Only use these categories:
+   - "pattern": recurring or shared themes across documents
+   - "anomaly": contradictions, diverging results, or inconsistencies between documents
+   - "opportunity": chances for synthesis, extension, or useful combination of ideas
+   - "risk": conflicts, gaps, or limitations that appear when comparing documents
+4. Each insight must reference at least two documents.
+5. Provide specific evidence from the summaries.
+
+Return ONLY valid JSON in this structure:
+
+[
+  {
+    "title": "Short descriptive title",
+    "description": "2–4 sentence explanation that explicitly references multiple documents",
+    "confidence": "High" | "Medium" | "Low",
+    "category": "pattern" | "anomaly" | "opportunity" | "risk",
+    "evidence": ["Doc A: specific point", "Doc B: specific point"],
+    "impact": "2 sentences: what this multi-document insight implies strategically or intellectually"
+  }
+]
+`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are an expert document analyst who compares multiple documents to find cross-document insights. Always respond with valid JSON only.",
+      },
+      { role: "user", content: prompt },
     ],
     temperature: 0.6,
     max_tokens: 3000,
   });
 
-  const responseText = completion.choices[0].message.content || '';
-  return safeParseInsightsResponse(responseText);
-}
+  const responseText = completion.choices[0].message.content || "";
+  const parsed = safeParseInsightsResponse(responseText);
 
-interface CrossDocSummary {
-  name: string;
-  summary: string;
-  metadata: any;
-}
-
-async function analyzeCrossDocumentWithAI(
-  docs: CrossDocSummary[]
-): Promise<Insight[]> {
-  const prompt = `
-You are an expert analyst comparing multiple documents.
-
-You will receive a JSON array of documents with this shape:
-[
-  {
-    "name": "Document name",
-    "summary": "Short summary of the document",
-    "metadata": { ...optional key facts like date, author, tags... }
-  }
-]
-
-Your task:
-- Look for patterns, anomalies, contradictions, and opportunities across the documents.
-- Focus on cross-document insights, not per-document summaries.
-- Produce 6-10 insights.
-
-Return ONLY valid JSON, with the same Insight schema as before
-(either an array or { "insights": [ ... ] }).
-
-Documents:
-"""${JSON.stringify(docs).slice(0, 18000)}"""`;
-
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      {
-        role: 'system',
-        content:
-          'You are an expert document analyst. Always respond with valid JSON only, following the requested schema.',
-      },
-      { role: 'user', content: prompt },
-    ],
-    temperature: 0.5,
-    max_tokens: 2500,
-  });
-
-  const responseText = completion.choices[0].message.content || '';
-  return safeParseInsightsResponse(responseText);
+  // Filter out any stray 'correlation' just in case
+  return parsed.filter((i) => i.category !== "correlation");
 }
 
 // ---------- Public service functions ----------
@@ -182,21 +225,35 @@ Documents:
 export async function generateDocumentInsights(
   documentId: string,
   userId: string,
-  forceRegenerate: boolean = false
+  forceRegenerate = false
 ): Promise<InsightResponse> {
-  // Check for cached insights first (unless force regenerate)
-  if (!forceRegenerate) {
-    const { data: cached, error: cacheError } = await supabase
-      .from('document_insights')
-      .select('insights, created_at')
-      .eq('document_id', documentId)
-      .eq('user_id', userId)
-      .single();
+  // 1) Try cache (unless forcing regeneration)
+  const { data: cached, error: cacheError } = await supabase
+    .from("document_insights")
+    .select("insights, created_at")
+    .eq("document_id", documentId)
+    .eq("user_id", userId)
+    .single();
 
-    if (!cacheError && cached?.insights) {
-      console.log('📦 Returning cached insights');
+  if (cacheError) {
+    // This includes the "Cannot coerce the result to a single JSON object" case
+    console.warn(
+      "Error reading cached insights (ok to continue):",
+      cacheError.message
+    );
+  }
+
+  if (!forceRegenerate && cached?.insights) {
+    const cacheAgeMs = Date.now() - new Date(cached.created_at).getTime();
+    const hours = cacheAgeMs / (1000 * 60 * 60);
+
+    if (hours < 24) {
+      console.log("📦 Returning cached insights");
+      const filtered = (cached.insights as Insight[]).filter(
+        (i) => i.category !== "correlation"
+      );
       return {
-        insights: Array.isArray(cached.insights) ? cached.insights : [],
+        insights: filtered,
         generatedAt: cached.created_at,
         documentCount: 1,
         cached: true,
@@ -204,61 +261,74 @@ export async function generateDocumentInsights(
     }
   }
 
-  // Fetch document meta
+  // 2) Validate document ownership
   const { data: doc, error: docError } = await supabase
-    .from('documents')
-    .select('id, file_name, user_id')
-    .eq('id', documentId)
-    .eq('user_id', userId)
+    .from("documents")
+    .select("id, file_name, user_id")
+    .eq("id", documentId)
+    .eq("user_id", userId)
     .single();
 
   if (docError || !doc) {
-    console.error('Error fetching document for insights:', docError);
-    throw new Error('Document not found');
+    console.error("Error fetching document for insights:", docError);
+    throw new Error("Document not found");
   }
 
-  // Fetch up to N chunks to build content
+  // 3) Fetch ALL chunks
+  console.log(`📄 Fetching all chunks for document ${documentId}...`);
   const { data: chunks, error: chunksError } = await supabase
-    .from('document_chunks')
-    .select('content')
-    .eq('document_id', documentId)
-    .limit(50);
+    .from("document_chunks")
+    .select("content, chunk_index")
+    .eq("document_id", documentId)
+    .order("chunk_index", { ascending: true });
 
   if (chunksError) {
-    console.error('Error fetching document chunks for insights:', chunksError);
+    console.error("Error fetching document chunks for insights:", chunksError);
+    throw new Error("Failed to fetch document chunks");
   }
+
+  console.log(`✅ Fetched ${chunks?.length || 0} chunks`);
 
   const fullContent =
     chunks && chunks.length > 0
-      ? (chunks as any[]).map(c => c.content).join('\n\n')
-      : '';
+      ? (chunks as any[]).map((c) => c.content).join("\n\n")
+      : "";
 
+  console.log(`📊 Full document: ${fullContent.length} characters`);
+
+  // 4) Call OpenAI
   const insights = await analyzeDocumentWithAI(
-    (doc as any).file_name ?? 'Document',
+    (doc as any).file_name ?? "Document",
     fullContent
   );
 
-  const now = new Date().toISOString();
+  console.log(`✨ Generated ${insights.length} insights`);
 
-  // Cache the insights - use upsert to update if exists
+  // 5) Cache insights in DB
   const { error: upsertError } = await supabase
-    .from('document_insights')
-    .upsert({
-      document_id: documentId,
-      user_id: userId,
-      insights,
-      created_at: now,
-    }, {
-      onConflict: 'document_id,user_id'
-    });
+    .from("document_insights")
+    .upsert(
+      {
+        document_id: documentId,
+        user_id: userId,
+        insights,
+        created_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "document_id,user_id",
+      }
+    );
 
   if (upsertError) {
-    console.warn('Failed to upsert document_insights cache:', upsertError.message);
+    console.warn(
+      "Failed to upsert document_insights cache:",
+      upsertError.message
+    );
   }
 
   return {
     insights,
-    generatedAt: now,
+    generatedAt: new Date().toISOString(),
     documentCount: 1,
     cached: false,
   };
@@ -267,59 +337,76 @@ export async function generateDocumentInsights(
 export async function generateCrossDocumentInsights(
   documentIds: string[],
   userId: string,
-  forceRegenerate: boolean = false
+  forceRegenerate = false
 ): Promise<InsightResponse> {
   if (!documentIds.length) {
     return {
       insights: [],
       generatedAt: new Date().toISOString(),
       documentCount: 0,
+      cached: false,
     };
   }
 
-  // For cross-document insights, we can't use the existing table structure
-  // since it only supports single document_id. Just generate fresh insights.
-
   const { data: docs, error: docsError } = await supabase
-    .from('documents')
-    .select('id, file_name, metadata')
-    .in('id', documentIds)
-    .eq('user_id', userId);
+    .from("documents")
+    .select("id, file_name, metadata")
+    .in("id", documentIds)
+    .eq("user_id", userId);
 
-  if (docsError || !docs || docs.length === 0) {
-    console.error('Error fetching documents for cross insights:', docsError);
-    throw new Error('Documents not found');
+  if (docsError) {
+    console.error("Error fetching documents for cross-document insights:", docsError);
+    throw new Error("Failed to fetch documents");
   }
 
-  // Grab summaries where available
-  const summaries: CrossDocSummary[] = [];
+  if (!docs || !docs.length) {
+    return {
+      insights: [],
+      generatedAt: new Date().toISOString(),
+      documentCount: 0,
+      cached: false,
+    };
+  }
 
-  for (const doc of docs as any[]) {
-    const { data: summary, error: summaryError } = await supabase
-      .from('document_summaries')
-      .select('summary')
-      .eq('document_id', doc.id)
+  const summaries: {
+    name: string;
+    summary: string;
+    metadata?: Record<string, any>;
+  }[] = [];
+
+  for (const doc of docs) {
+    const { data: summaryDoc, error: summaryError } = await supabase
+      .from("documents")
+      .select("summary")
+      .eq("id", doc.id)
       .single();
 
     if (summaryError) {
-      console.warn(
-        `No summary found for document ${doc.id} (ok, will still include with empty summary)`
-      );
+      console.warn("Error fetching summary for document:", doc.id, summaryError);
+      continue;
+    }
+
+    let summary: any = summaryDoc?.summary;
+    if (typeof summary === "string") {
+      try {
+        summary = JSON.parse(summary);
+      } catch {
+        // ignore parse error, treat as raw text
+      }
     }
 
     summaries.push({
-      name: doc.file_name ?? 'Document',
-      summary: summary?.summary || '',
+      name: doc.file_name ?? "Document",
+      summary: summary?.overview || summary?.summary || "",
       metadata: doc.metadata || {},
     });
   }
 
   const insights = await analyzeCrossDocumentWithAI(summaries);
-  const now = new Date().toISOString();
 
   return {
     insights,
-    generatedAt: now,
+    generatedAt: new Date().toISOString(),
     documentCount: docs.length,
     cached: false,
   };

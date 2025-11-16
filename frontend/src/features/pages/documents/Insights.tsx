@@ -25,7 +25,7 @@ const categoryLabels = {
 };
 
 // Define display order: urgent → actionable → investigative → analytical
-const categoryOrder = ['risk', 'opportunity', 'anomaly', 'pattern'];
+const categoryOrder = ['opportunity', 'risk', 'anomaly', 'pattern'];
 
 export const Insights = () => {
   const { id: documentId } = useParams<{ id: string }>();
@@ -166,7 +166,7 @@ Confidence: ${insight.confidence}`;
       <div className="flex flex-col items-center justify-center py-16">
         <Loader2 className="w-12 h-12 animate-spin text-accent" />
         <p className="mt-4 text-lg text-muted-foreground">Analyzing document...</p>
-        <p className="mt-1 text-xs text-muted-foreground">This may take 10-15 seconds</p>
+        <p className="mt-1 text-xs text-muted-foreground">This May Take a While</p>
       </div>
     );
   }

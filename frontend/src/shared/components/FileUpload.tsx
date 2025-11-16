@@ -19,6 +19,14 @@ interface Document {
   file_size: number;
 }
 
+// File validation constants
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain'
+];
+
 export const FileUpload = ({
   onFileSelect,
   hasExistingDocument,
@@ -32,6 +40,7 @@ export const FileUpload = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (showLibrary) {
@@ -51,18 +60,41 @@ export const FileUpload = ({
     }
   };
 
+  const validateFile = (file: File): string | null => {
+    // Check file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return 'Unsupported file type. Please upload PDF, DOCX, or TXT files only.';
+    }
+
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return `File too large. Maximum size is 10MB.\nYour file: ${formatFileSize(file.size)}`;
+    }
+
+    // Check if file is empty
+    if (file.size === 0) {
+      return 'File is empty. Please upload a file with content.';
+    }
+
+    return null; // Valid file
+  };
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
 
       const file = e.dataTransfer.files[0];
-      if (file && (file.type === "application/pdf" ||
-                   file.type === "text/plain" ||
-                   file.type === "text/csv" ||
-                   file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document")) {
-        onFileSelect(file);
+      if (!file) return;
+
+      const error = validateFile(file);
+      if (error) {
+        setUploadError(error);
+        return;
       }
+
+      setUploadError(null);
+      onFileSelect(file);
     },
     [onFileSelect]
   );
@@ -79,9 +111,17 @@ export const FileUpload = ({
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (file) {
-        onFileSelect(file);
+      if (!file) return;
+
+      const error = validateFile(file);
+      if (error) {
+        setUploadError(error);
+        e.target.value = ''; // Reset input
+        return;
       }
+
+      setUploadError(null);
+      onFileSelect(file);
     },
     [onFileSelect]
   );
@@ -93,7 +133,7 @@ export const FileUpload = ({
   };
 
   const handleDeleteDocument = async (e: React.MouseEvent, docId: string, fileName: string) => {
-    e.stopPropagation(); // Prevent triggering document select
+    e.stopPropagation();
     setDeleteConfirm({ id: docId, name: fileName });
   };
 
@@ -122,10 +162,7 @@ export const FileUpload = ({
       }
 
       const data = await response.json();
-
-      // Remove from local state
       setDocuments(docs => docs.filter(d => d.id !== docId));
-
       console.log(`✅ ${data.message || 'Document deleted successfully'}`);
     } catch (error) {
       console.error('Failed to delete document:', error);
@@ -204,7 +241,7 @@ export const FileUpload = ({
           >
             <input
               type="file"
-              accept=".pdf,.txt,.csv,.docx"
+              accept=".pdf,.txt,.docx"
               onChange={handleFileInput}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
@@ -226,7 +263,7 @@ export const FileUpload = ({
                   Drag & drop or click to browse
                 </p>
                 <p className="text-sm text-muted-foreground mt-4">
-                  Supports PDF, TXT, CSV, and DOCX files
+                  Supports PDF, TXT, and DOCX files (max 10MB, 50 pages for PDFs)
                 </p>
               </div>
             </div>
@@ -357,6 +394,31 @@ export const FileUpload = ({
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Upload Error Notification */}
+      {uploadError && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-50 max-w-md w-full px-4 animate-slide-in">
+          <div className="bg-card border border-red-500/50 rounded-xl p-4 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                <Upload className="w-5 h-5 text-red-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-red-500 mb-1">Upload Failed</h3>
+                <p className="text-sm text-foreground whitespace-pre-line">{uploadError}</p>
+              </div>
+              <button
+                onClick={() => setUploadError(null)}
+                className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       )}
