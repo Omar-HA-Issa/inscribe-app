@@ -192,19 +192,19 @@ Confidence: ${insight.confidence}`;
   return (
     <div className="space-y-6 animate-slide-in">
       {/* Header Section */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-semibold mb-2 lowercase">hidden insights</h2>
-          <p className="text-muted-foreground">AI-discovered patterns and non-obvious connections</p>
+          <h2 className="text-3xl font-semibold mb-1 lowercase">hidden insights</h2>
+          <p className="text-muted-foreground text-sm">AI-discovered patterns and non-obvious connections</p>
         </div>
 
         <div className="flex items-center gap-3">
           {generatedAt && (
             <div className="text-right">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {cached && <Clock className="w-3 h-3" />}
-                <span>{cached ? 'Cached' : 'Generated'}</span>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                {cached && <Clock className="w-3 h-3 inline mr-1" />}
+                {cached ? 'Cached' : 'Generated'}
+              </p>
               <p className="text-xs text-muted-foreground font-medium">
                 {new Date(generatedAt).toLocaleString()}
               </p>
@@ -233,79 +233,61 @@ Confidence: ${insight.confidence}`;
               placeholder="Search insights..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
+              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
             />
           </div>
 
-          {/* Stats & Category Filters */}
-          <div className="bg-card rounded-xl p-3 shadow-card">
-            <div className="flex items-center justify-between gap-6">
-              {/* Left: Stats */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">{filteredInsights.length} of {insights.length}</span>
-                </div>
-                {insights.filter(i => i.confidence === 'High').length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-foreground" />
-                    <span className="text-xs text-muted-foreground">
-                      {insights.filter(i => i.confidence === 'High').length} high confidence
-                    </span>
-                  </div>
-                )}
-              </div>
+          {/* Filters */}
+          <div className="flex items-center justify-between gap-4">
+            {/* Category Filters */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {categoryOrder.map((category) => {
+                const Icon = categoryIcons[category as keyof typeof categoryIcons];
+                const count = insights.filter(i => i.category === category).length;
+                if (count === 0) return null;
+                const isSelected = selectedCategories.has(category);
+                const colorClass = categoryColors[category as keyof typeof categoryColors];
+                const label = categoryLabels[category as keyof typeof categoryLabels];
 
-              {/* Center: Category Filters */}
-              <div className="flex items-center gap-2">
-                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-                {categoryOrder.map((category) => {
-                  const Icon = categoryIcons[category as keyof typeof categoryIcons];
-                  const count = insights.filter(i => i.category === category).length;
-                  if (count === 0) return null;
-                  const isSelected = selectedCategories.has(category);
-                  const colorClass = categoryColors[category as keyof typeof categoryColors];
+                return (
+                  <button
+                    key={category}
+                    onClick={() => toggleCategory(category)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      isSelected
+                        ? `${colorClass} bg-muted border border-current`
+                        : 'text-muted-foreground bg-card border border-border hover:bg-muted/50'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{label}</span>
+                    <span className="text-xs opacity-70">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
 
-                  return (
-                    <button
-                      key={category}
-                      onClick={() => toggleCategory(category)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all ${
-                        isSelected
-                          ? `${colorClass} bg-muted`
-                          : 'text-muted-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      <Icon className="w-3 h-3" />
-                      <span>{count}</span>
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Confidence Filters */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {['High', 'Medium', 'Low'].map(conf => {
+                const count = insights.filter(i => i.confidence === conf).length;
+                if (count === 0) return null;
+                const isSelected = selectedConfidence.has(conf);
 
-              {/* Right: Confidence Filters */}
-              <div className="flex items-center gap-2">
-                {['High', 'Medium', 'Low'].map(conf => {
-                  const count = insights.filter(i => i.confidence === conf).length;
-                  if (count === 0) return null;
-                  const isSelected = selectedConfidence.has(conf);
-
-                  return (
-                    <button
-                      key={conf}
-                      onClick={() => toggleConfidence(conf)}
-                      className={`px-2 py-1 rounded text-xs font-medium transition-all ${
-                        isSelected
-                          ? 'bg-muted text-foreground'
-                          : 'text-muted-foreground hover:bg-muted/50'
-                      }`}
-                      title={`${conf} confidence`}
-                    >
-                      {conf}: {count}
-                    </button>
-                  );
-                })}
-              </div>
+                return (
+                  <button
+                    key={conf}
+                    onClick={() => toggleConfidence(conf)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      isSelected
+                        ? 'bg-accent/20 text-accent border border-accent/30'
+                        : 'text-muted-foreground bg-card border border-border hover:bg-muted/50'
+                    }`}
+                  >
+                    {conf}: {count}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
