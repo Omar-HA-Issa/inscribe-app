@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { AlertCircle, Target, TrendingUp, Lightbulb, AlertTriangle, Loader2, FileText, Filter } from 'lucide-react';
+import { AlertCircle, Target, Lightbulb, AlertTriangle, Loader2, FileText, Filter, RefreshCw, Clock, Copy, Check, Search, ArrowUpDown } from 'lucide-react';
 import { generateDocumentInsights, Insight } from '@/shared/lib/insightsApi';
 
 const categoryIcons = {
-  correlation: TrendingUp,
   pattern: Target,
   anomaly: AlertCircle,
   opportunity: Lightbulb,
@@ -12,7 +11,6 @@ const categoryIcons = {
 };
 
 const categoryColors = {
-  correlation: 'text-blue-400',
   pattern: 'text-purple-400',
   anomaly: 'text-yellow-400',
   opportunity: 'text-green-400',
@@ -20,44 +18,61 @@ const categoryColors = {
 };
 
 const categoryLabels = {
-  correlation: 'Correlations',
   pattern: 'Patterns',
   anomaly: 'Anomalies',
   opportunity: 'Opportunities',
   risk: 'Risks',
 };
 
+// Define display order: urgent → actionable → investigative → analytical
+const categoryOrder = ['risk', 'opportunity', 'anomaly', 'pattern'];
+
 export const Insights = () => {
   const { id: documentId } = useParams<{ id: string }>();
   const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [cached, setCached] = useState(false);
   const [expandedInsight, setExpandedInsight] = useState<number | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [selectedConfidence, setSelectedConfidence] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [sortByConfidence, setSortByConfidence] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (documentId) {
-      loadInsights();
+      loadInsights(false);
     }
   }, [documentId]);
 
-  const loadInsights = async () => {
+  const loadInsights = async (forceRegenerate: boolean) => {
     if (!documentId) return;
 
-    setLoading(true);
+    if (forceRegenerate) {
+      setRegenerating(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
 
     try {
-      const result = await generateDocumentInsights(documentId);
+      const result = await generateDocumentInsights(documentId, forceRegenerate);
       setInsights(result.insights);
       setGeneratedAt(result.generatedAt);
+      setCached(result.cached || false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate insights');
     } finally {
       setLoading(false);
+      setRegenerating(false);
     }
+  };
+
+  const handleRegenerate = () => {
+    loadInsights(true);
   };
 
   const toggleCategory = (category: string) => {
@@ -84,13 +99,50 @@ export const Insights = () => {
     });
   };
 
+  const toggleSortByConfidence = (category: string) => {
+    setSortByConfidence(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
+
+  const copyInsight = async (insight: Insight, index: number) => {
+    const text = `${insight.title}
+
+${insight.description}
+
+Impact: ${insight.impact}
+
+Evidence:
+${insight.evidence.map((e, i) => `${i + 1}. ${e}`).join('\n')}
+
+Category: ${insight.category}
+Confidence: ${insight.confidence}`;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
   const filteredInsights = insights.filter(insight => {
     const categoryMatch = selectedCategories.size === 0 || selectedCategories.has(insight.category);
     const confidenceMatch = selectedConfidence.size === 0 || selectedConfidence.has(insight.confidence);
-    return categoryMatch && confidenceMatch;
+
+    // Search filter
+    const searchMatch = !searchQuery ||
+      insight.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      insight.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      insight.impact.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      insight.evidence.some(e => e.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    return categoryMatch && confidenceMatch && searchMatch;
   });
 
-  // Group insights by category and sort by confidence
+  // Group insights by category
   const groupedInsights = filteredInsights.reduce((acc, insight) => {
     if (!acc[insight.category]) {
       acc[insight.category] = [];
@@ -99,22 +151,15 @@ export const Insights = () => {
     return acc;
   }, {} as Record<string, Insight[]>);
 
-  // Sort each category by confidence (High -> Medium -> Low)
+  // Sort each category
   const confidenceOrder = { 'High': 0, 'Medium': 1, 'Low': 2 };
   Object.keys(groupedInsights).forEach(category => {
-    groupedInsights[category].sort((a, b) =>
-      confidenceOrder[a.confidence] - confidenceOrder[b.confidence]
-    );
+    const sortDescending = sortByConfidence[category];
+    groupedInsights[category].sort((a, b) => {
+      const order = confidenceOrder[a.confidence] - confidenceOrder[b.confidence];
+      return sortDescending ? -order : order;
+    });
   });
-
-  const getConfidenceColor = (confidence: string) => {
-    switch (confidence) {
-      case 'High': return 'bg-foreground';
-      case 'Medium': return 'bg-chart-mid';
-      case 'Low': return 'bg-chart-low';
-      default: return 'bg-muted';
-    }
-  };
 
   if (loading) {
     return (
@@ -134,7 +179,7 @@ export const Insights = () => {
           <h3 className="font-semibold text-destructive mb-2">Failed to Generate Insights</h3>
           <p className="text-sm text-destructive/80 mb-3">{error}</p>
           <button
-            onClick={loadInsights}
+            onClick={() => loadInsights(false)}
             className="px-4 py-2 bg-destructive/20 hover:bg-destructive/30 text-destructive rounded-lg text-sm font-medium transition-all"
           >
             Try Again
@@ -147,70 +192,83 @@ export const Insights = () => {
   return (
     <div className="space-y-6 animate-slide-in">
       {/* Header Section */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-semibold mb-2 lowercase">hidden insights</h2>
-          <p className="text-muted-foreground">AI-discovered patterns and non-obvious connections</p>
+          <h2 className="text-3xl font-semibold mb-1 lowercase">hidden insights</h2>
+          <p className="text-muted-foreground text-sm">AI-discovered patterns and non-obvious connections</p>
         </div>
 
-        {generatedAt && (
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground">Generated</p>
-            <p className="text-xs text-muted-foreground font-medium">
-              {new Date(generatedAt).toLocaleString()}
-            </p>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {generatedAt && (
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">
+                {cached && <Clock className="w-3 h-3 inline mr-1" />}
+                {cached ? 'Cached' : 'Generated'}
+              </p>
+              <p className="text-xs text-muted-foreground font-medium">
+                {new Date(generatedAt).toLocaleString()}
+              </p>
+            </div>
+          )}
+
+          <button
+            onClick={handleRegenerate}
+            disabled={regenerating}
+            className="flex items-center gap-2 px-4 py-2 bg-accent/10 hover:bg-accent/20 border border-accent/30 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
+            <span className="text-sm font-medium">{regenerating ? 'Regenerating...' : 'Regenerate'}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Stats & Filters Bar */}
+      {/* Search & Filters Bar */}
       {insights.length > 0 && (
-        <div className="bg-card rounded-xl p-3 shadow-card">
-          <div className="flex items-center justify-between gap-6">
-            {/* Left: Stats */}
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">{filteredInsights.length} of {insights.length}</span>
-              </div>
-              {insights.filter(i => i.confidence === 'High').length > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-foreground" />
-                  <span className="text-xs text-muted-foreground">
-                    {insights.filter(i => i.confidence === 'High').length} high confidence
-                  </span>
-                </div>
-              )}
-            </div>
+        <div className="space-y-3">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search insights..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
+            />
+          </div>
 
-            {/* Center: Category Filters */}
-            <div className="flex items-center gap-2">
-              <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-              {Object.entries(categoryIcons).map(([category, Icon]) => {
+          {/* Filters */}
+          <div className="flex items-center justify-between gap-4">
+            {/* Category Filters */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {categoryOrder.map((category) => {
+                const Icon = categoryIcons[category as keyof typeof categoryIcons];
                 const count = insights.filter(i => i.category === category).length;
                 if (count === 0) return null;
                 const isSelected = selectedCategories.has(category);
                 const colorClass = categoryColors[category as keyof typeof categoryColors];
+                const label = categoryLabels[category as keyof typeof categoryLabels];
 
                 return (
                   <button
                     key={category}
                     onClick={() => toggleCategory(category)}
-                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       isSelected
-                        ? `${colorClass} bg-muted`
-                        : 'text-muted-foreground hover:bg-muted/50'
+                        ? `${colorClass} bg-muted border border-current`
+                        : 'text-muted-foreground bg-card border border-border hover:bg-muted/50'
                     }`}
                   >
-                    <Icon className="w-3 h-3" />
-                    <span>{count}</span>
+                    <Icon className="w-4 h-4" />
+                    <span>{label}</span>
+                    <span className="text-xs opacity-70">({count})</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Right: Confidence Filters */}
-            <div className="flex items-center gap-2">
+            {/* Confidence Filters */}
+            <div className="flex items-center gap-2 flex-shrink-0">
               {['High', 'Medium', 'Low'].map(conf => {
                 const count = insights.filter(i => i.confidence === conf).length;
                 if (count === 0) return null;
@@ -220,12 +278,11 @@ export const Insights = () => {
                   <button
                     key={conf}
                     onClick={() => toggleConfidence(conf)}
-                    className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       isSelected
-                        ? 'bg-muted text-foreground'
-                        : 'text-muted-foreground hover:bg-muted/50'
+                        ? 'bg-accent/20 text-accent border border-accent/30'
+                        : 'text-muted-foreground bg-card border border-border hover:bg-muted/50'
                     }`}
-                    title={`${conf} confidence`}
                   >
                     {conf}: {count}
                   </button>
@@ -239,18 +296,32 @@ export const Insights = () => {
       {/* Insights - Grouped by Category */}
       {filteredInsights.length > 0 ? (
         <div className="space-y-6">
-          {Object.entries(groupedInsights).map(([category, categoryInsights]) => {
+          {categoryOrder.map((category) => {
+            const categoryInsights = groupedInsights[category];
+            if (!categoryInsights || categoryInsights.length === 0) return null;
+
             const Icon = categoryIcons[category as keyof typeof categoryIcons] || Lightbulb;
             const colorClass = categoryColors[category as keyof typeof categoryColors];
             const label = categoryLabels[category as keyof typeof categoryLabels] || category;
 
             return (
               <div key={category} className="space-y-3">
-                {/* Category Header */}
-                <div className="flex items-center gap-2 border-b border-border pb-2">
-                  <Icon className={`w-5 h-5 ${colorClass}`} />
-                  <h3 className="text-lg font-semibold">{label}</h3>
-                  <span className="text-sm text-muted-foreground">({categoryInsights.length})</span>
+                {/* Category Header with Sort */}
+                <div className="flex items-center justify-between border-b border-border pb-2">
+                  <div className="flex items-center gap-2">
+                    <Icon className={`w-5 h-5 ${colorClass}`} />
+                    <h3 className="text-lg font-semibold">{label}</h3>
+                    <span className="text-sm text-muted-foreground">({categoryInsights.length})</span>
+                  </div>
+
+                  <button
+                    onClick={() => toggleSortByConfidence(category)}
+                    className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-all"
+                    title="Sort by confidence"
+                  >
+                    <ArrowUpDown className="w-3 h-3" />
+                    <span>{sortByConfidence[category] ? 'Low → High' : 'High → Low'}</span>
+                  </button>
                 </div>
 
                 {/* Category Insights */}
@@ -258,6 +329,7 @@ export const Insights = () => {
                   {categoryInsights.map((insight, i) => {
                     const globalIndex = insights.findIndex(ins => ins === insight);
                     const isExpanded = expandedInsight === globalIndex;
+                    const isCopied = copiedIndex === globalIndex;
 
                     return (
                       <div
@@ -265,9 +337,26 @@ export const Insights = () => {
                         className="bg-card rounded-xl p-5 shadow-card hover:shadow-hover transition-all"
                       >
                         <div className="flex-1 min-w-0 space-y-4">
-                          {/* Title only */}
-                          <div className="flex items-center justify-between gap-4">
+                          {/* Title with Copy Button */}
+                          <div className="flex items-start justify-between gap-4">
                             <h4 className="text-lg font-semibold flex-1">{insight.title}</h4>
+                            <button
+                              onClick={() => copyInsight(insight, globalIndex)}
+                              className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted rounded transition-all flex-shrink-0"
+                              title="Copy insight"
+                            >
+                              {isCopied ? (
+                                <>
+                                  <Check className="w-3 h-3" />
+                                  <span>Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
                           </div>
 
                           {/* Description */}
@@ -295,7 +384,7 @@ export const Insights = () => {
                                 <div />
                               )}
 
-                              {/* AI Confidence - Fixed Position */}
+                              {/* AI Confidence */}
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 <span className="text-xs text-muted-foreground">AI Confidence:</span>
                                 <span className="text-xs font-medium text-foreground">
@@ -328,7 +417,7 @@ export const Insights = () => {
         <div className="text-center py-12 text-muted-foreground">
           <Filter className="w-12 h-12 mx-auto mb-4 opacity-30" />
           <p className="text-lg">No insights match your filters</p>
-          <p className="text-sm mt-2">Try adjusting your filter selection</p>
+          <p className="text-sm mt-2">Try adjusting your search or filter selection</p>
         </div>
       ) : (
         <div className="text-center py-16 text-muted-foreground">
