@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { AlertCircle, Target, TrendingUp, Lightbulb, AlertTriangle, Loader2, FileText, Filter } from 'lucide-react';
+import { AlertCircle, Target, Lightbulb, AlertTriangle, Loader2, FileText, Filter, RefreshCw, Clock } from 'lucide-react';
 import { generateDocumentInsights, Insight } from '@/shared/lib/insightsApi';
 
 const categoryIcons = {
-  correlation: TrendingUp,
   pattern: Target,
   anomaly: AlertCircle,
   opportunity: Lightbulb,
@@ -12,7 +11,6 @@ const categoryIcons = {
 };
 
 const categoryColors = {
-  correlation: 'text-blue-400',
   pattern: 'text-purple-400',
   anomaly: 'text-yellow-400',
   opportunity: 'text-green-400',
@@ -20,44 +18,58 @@ const categoryColors = {
 };
 
 const categoryLabels = {
-  correlation: 'Correlations',
   pattern: 'Patterns',
   anomaly: 'Anomalies',
   opportunity: 'Opportunities',
   risk: 'Risks',
 };
 
+// Define display order: urgent → actionable → investigative → analytical
+const categoryOrder = ['risk', 'opportunity', 'anomaly', 'pattern'];
+
 export const Insights = () => {
   const { id: documentId } = useParams<{ id: string }>();
   const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [cached, setCached] = useState(false);
   const [expandedInsight, setExpandedInsight] = useState<number | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [selectedConfidence, setSelectedConfidence] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (documentId) {
-      loadInsights();
+      loadInsights(false);
     }
   }, [documentId]);
 
-  const loadInsights = async () => {
+  const loadInsights = async (forceRegenerate: boolean) => {
     if (!documentId) return;
 
-    setLoading(true);
+    if (forceRegenerate) {
+      setRegenerating(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
 
     try {
-      const result = await generateDocumentInsights(documentId);
+      const result = await generateDocumentInsights(documentId, forceRegenerate);
       setInsights(result.insights);
       setGeneratedAt(result.generatedAt);
+      setCached(result.cached || false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate insights');
     } finally {
       setLoading(false);
+      setRegenerating(false);
     }
+  };
+
+  const handleRegenerate = () => {
+    loadInsights(true);
   };
 
   const toggleCategory = (category: string) => {
@@ -134,7 +146,7 @@ export const Insights = () => {
           <h3 className="font-semibold text-destructive mb-2">Failed to Generate Insights</h3>
           <p className="text-sm text-destructive/80 mb-3">{error}</p>
           <button
-            onClick={loadInsights}
+            onClick={() => loadInsights(false)}
             className="px-4 py-2 bg-destructive/20 hover:bg-destructive/30 text-destructive rounded-lg text-sm font-medium transition-all"
           >
             Try Again
@@ -153,14 +165,28 @@ export const Insights = () => {
           <p className="text-muted-foreground">AI-discovered patterns and non-obvious connections</p>
         </div>
 
-        {generatedAt && (
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground">Generated</p>
-            <p className="text-xs text-muted-foreground font-medium">
-              {new Date(generatedAt).toLocaleString()}
-            </p>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {generatedAt && (
+            <div className="text-right">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {cached && <Clock className="w-3 h-3" />}
+                <span>{cached ? 'Cached' : 'Generated'}</span>
+              </div>
+              <p className="text-xs text-muted-foreground font-medium">
+                {new Date(generatedAt).toLocaleString()}
+              </p>
+            </div>
+          )}
+
+          <button
+            onClick={handleRegenerate}
+            disabled={regenerating}
+            className="flex items-center gap-2 px-4 py-2 bg-accent/10 hover:bg-accent/20 border border-accent/30 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
+            <span className="text-sm font-medium">{regenerating ? 'Regenerating...' : 'Regenerate'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats & Filters Bar */}
@@ -183,10 +209,11 @@ export const Insights = () => {
               )}
             </div>
 
-            {/* Center: Category Filters */}
+            {/* Center: Category Filters - in priority order */}
             <div className="flex items-center gap-2">
               <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-              {Object.entries(categoryIcons).map(([category, Icon]) => {
+              {categoryOrder.map((category) => {
+                const Icon = categoryIcons[category as keyof typeof categoryIcons];
                 const count = insights.filter(i => i.category === category).length;
                 if (count === 0) return null;
                 const isSelected = selectedCategories.has(category);
@@ -236,10 +263,13 @@ export const Insights = () => {
         </div>
       )}
 
-      {/* Insights - Grouped by Category */}
+      {/* Insights - Grouped by Category in priority order */}
       {filteredInsights.length > 0 ? (
         <div className="space-y-6">
-          {Object.entries(groupedInsights).map(([category, categoryInsights]) => {
+          {categoryOrder.map((category) => {
+            const categoryInsights = groupedInsights[category];
+            if (!categoryInsights || categoryInsights.length === 0) return null;
+
             const Icon = categoryIcons[category as keyof typeof categoryIcons] || Lightbulb;
             const colorClass = categoryColors[category as keyof typeof categoryColors];
             const label = categoryLabels[category as keyof typeof categoryLabels] || category;

@@ -4,7 +4,7 @@ export interface Insight {
   title: string;
   description: string;
   confidence: 'High' | 'Medium' | 'Low';
-  category: 'correlation' | 'pattern' | 'anomaly' | 'opportunity' | 'risk';
+  category: 'risk' | 'opportunity' | 'anomaly' | 'pattern';
   evidence: string[];
   impact: string;
 }
@@ -13,12 +13,19 @@ export interface InsightResponse {
   insights: Insight[];
   generatedAt: string;
   documentCount: number;
+  cached?: boolean;
 }
 
-export async function generateDocumentInsights(documentId: string): Promise<InsightResponse> {
-  return api.post<InsightResponse>(`/api/insights/document/${documentId}`);
+export async function generateDocumentInsights(
+  documentId: string,
+  forceRegenerate: boolean = false
+): Promise<InsightResponse> {
+  return api.post<InsightResponse>(`/api/insights/document/${documentId}`, { forceRegenerate });
 }
 
-export async function generateCrossDocumentInsights(documentIds: string[]): Promise<InsightResponse> {
-  return api.post<InsightResponse>('/api/insights/cross-document', { documentIds });
+export async function generateCrossDocumentInsights(
+  documentIds: string[],
+  forceRegenerate: boolean = false
+): Promise<InsightResponse> {
+  return api.post<InsightResponse>('/api/insights/cross-document', { documentIds, forceRegenerate });
 }

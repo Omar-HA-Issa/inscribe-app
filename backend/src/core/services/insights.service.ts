@@ -14,7 +14,7 @@ export interface Insight {
   title: string;
   description: string;
   confidence: 'High' | 'Medium' | 'Low';
-  category: 'correlation' | 'pattern' | 'anomaly' | 'opportunity' | 'risk';
+  category: 'risk' | 'opportunity' | 'anomaly' | 'pattern';
   evidence: string[];
   impact: string;
 }
@@ -23,6 +23,7 @@ export interface InsightResponse {
   insights: Insight[];
   generatedAt: string;
   documentCount: number;
+  cached?: boolean;
 }
 
 // ---------- Helper to safely parse model output ----------
@@ -83,7 +84,7 @@ CRITICAL INSTRUCTIONS:
 5. Analyze what's NOT said but implied
 6. Consider strategic, operational, and tactical implications
 
-Generate 8-12 insights. Each insight should be:
+Generate 8-12 insights across all 4 categories. Each insight should be:
 - NON-OBVIOUS: Requires analysis, not just reading
 - SPECIFIC: Use concrete details from the document
 - ACTIONABLE: Has clear implications
@@ -95,18 +96,17 @@ Return ONLY valid JSON (no markdown, no explanation):
     "title": "Specific, compelling insight title",
     "description": "2-3 sentences explaining the insight with analytical depth. Connect multiple concepts. Explain WHY this matters.",
     "confidence": "High" | "Medium" | "Low",
-    "category": "correlation" | "pattern" | "anomaly" | "opportunity" | "risk",
+    "category": "risk" | "opportunity" | "anomaly" | "pattern",
     "evidence": ["Specific quote or data point", "Another supporting point", "Third piece of evidence"],
     "impact": "2 sentences: What this means strategically and what actions it suggests"
   }
 ]
 
-Categories:
-- correlation: Unexpected relationships between concepts
-- pattern: Recurring themes that reveal deeper meaning
-- anomaly: Inconsistencies, contradictions, or gaps
-- opportunity: Untapped potential or strategic advantages
-- risk: Hidden concerns or potential problems
+Categories (aim for 2-3 insights per category):
+- risk: Hidden concerns, potential problems, or threats that need attention
+- opportunity: Untapped potential, strategic advantages, or growth areas to pursue
+- anomaly: Inconsistencies, contradictions, or unexpected gaps that need investigation
+- pattern: Recurring themes, relationships, or structures that reveal deeper meaning
 `;
 
   const completion = await openai.chat.completions.create({
@@ -149,9 +149,9 @@ You will receive a JSON array of documents with this shape:
 ]
 
 Your task:
-- Look for patterns, correlations, contradictions, and opportunities across the documents.
+- Look for patterns, anomalies, contradictions, and opportunities across the documents.
 - Focus on cross-document insights, not per-document summaries.
-- Produce 3–10 insights.
+- Produce 6-10 insights.
 
 Return ONLY valid JSON, with the same Insight schema as before
 (either an array or { "insights": [ ... ] }).
@@ -181,31 +181,25 @@ Documents:
 
 export async function generateDocumentInsights(
   documentId: string,
-  userId: string
+  userId: string,
+  forceRegenerate: boolean = false
 ): Promise<InsightResponse> {
-  // Check for cached insights first
-  const { data: cached, error: cacheError } = await supabase
-    .from('document_insights')
-    .select('insights, created_at')
-    .eq('document_id', documentId)
-    .eq('user_id', userId)
-    .single();
+  // Check for cached insights first (unless force regenerate)
+  if (!forceRegenerate) {
+    const { data: cached, error: cacheError } = await supabase
+      .from('document_insights')
+      .select('insights, created_at')
+      .eq('document_id', documentId)
+      .eq('user_id', userId)
+      .single();
 
-  if (cacheError) {
-    console.warn('Error reading cached insights (ok to continue):', cacheError.message);
-  }
-
-  if (cached?.insights) {
-    const cacheAgeMs = Date.now() - new Date(cached.created_at).getTime();
-    const hours = cacheAgeMs / (1000 * 60 * 60);
-
-    // Reuse cache if younger than 24h
-    if (hours < 24) {
+    if (!cacheError && cached?.insights) {
       console.log('📦 Returning cached insights');
       return {
-        insights: cached.insights as Insight[],
+        insights: Array.isArray(cached.insights) ? cached.insights : [],
         generatedAt: cached.created_at,
         documentCount: 1,
+        cached: true,
       };
     }
   }
@@ -244,13 +238,19 @@ export async function generateDocumentInsights(
     fullContent
   );
 
-  // Cache the insights (ignore failure)
-  const { error: upsertError } = await supabase.from('document_insights').upsert({
-    document_id: documentId,
-    user_id: userId,
-    insights,
-    created_at: new Date().toISOString(),
-  });
+  const now = new Date().toISOString();
+
+  // Cache the insights - use upsert to update if exists
+  const { error: upsertError } = await supabase
+    .from('document_insights')
+    .upsert({
+      document_id: documentId,
+      user_id: userId,
+      insights,
+      created_at: now,
+    }, {
+      onConflict: 'document_id,user_id'
+    });
 
   if (upsertError) {
     console.warn('Failed to upsert document_insights cache:', upsertError.message);
@@ -258,14 +258,16 @@ export async function generateDocumentInsights(
 
   return {
     insights,
-    generatedAt: new Date().toISOString(),
+    generatedAt: now,
     documentCount: 1,
+    cached: false,
   };
 }
 
 export async function generateCrossDocumentInsights(
   documentIds: string[],
-  userId: string
+  userId: string,
+  forceRegenerate: boolean = false
 ): Promise<InsightResponse> {
   if (!documentIds.length) {
     return {
@@ -274,6 +276,9 @@ export async function generateCrossDocumentInsights(
       documentCount: 0,
     };
   }
+
+  // For cross-document insights, we can't use the existing table structure
+  // since it only supports single document_id. Just generate fresh insights.
 
   const { data: docs, error: docsError } = await supabase
     .from('documents')
@@ -310,10 +315,12 @@ export async function generateCrossDocumentInsights(
   }
 
   const insights = await analyzeCrossDocumentWithAI(summaries);
+  const now = new Date().toISOString();
 
   return {
     insights,
-    generatedAt: new Date().toISOString(),
+    generatedAt: now,
     documentCount: docs.length,
+    cached: false,
   };
 }
