@@ -17,21 +17,24 @@ export class EmbeddingService {
 
   static async generateEmbedding(input: string): Promise<number[]> {
     const client = getClient();
-    const res = await client.embeddings.create({
-      model: "text-embedding-3-small", // fast & cheap; 1536 dims
+    const response = await client.embeddings.create({
+      model: "text-embedding-3-small",
       input,
     });
-    return res.data[0].embedding;
+
+    return response.data[0].embedding;
   }
 
   static async generateEmbeddings(input: string[] | string): Promise<number[][]> {
     const client = getClient();
     const inputs = Array.isArray(input) ? input : [input];
-    const res = await client.embeddings.create({
+
+    const response = await client.embeddings.create({
       model: "text-embedding-3-small",
       input: inputs,
     });
-    return res.data.map((d) => d.embedding);
+
+    return response.data.map((item) => item.embedding);
   }
 
   async generateEmbedding(input: string): Promise<number[]> {

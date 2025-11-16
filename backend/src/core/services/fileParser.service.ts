@@ -50,14 +50,28 @@ export class FileParserService {
     try {
       const data = await pdf(dataBuffer);
 
+      // Check page count limit
+      if (data.numpages > 50) {
+        throw new Error(
+          `PDF has too many pages (${data.numpages}). Maximum is 50 pages. ` +
+          'Please split your document or upload key sections only.'
+        );
+      }
+
       if (data.text && data.text.trim().length > 50) {
-        console.log(`✅ PDF parsed with pdf-parse: ${data.text.length} characters`);
+        console.log(`✅ PDF parsed with pdf-parse: ${data.text.length} characters, ${data.numpages} pages`);
         return data.text;
       } else {
         console.warn('⚠️ pdf-parse extracted very little text, trying alternative...');
       }
     } catch (firstError) {
       const errorMsg = firstError instanceof Error ? firstError.message : String(firstError);
+
+      // Re-throw page count errors
+      if (errorMsg.includes('too many pages')) {
+        throw firstError;
+      }
+
       console.warn('pdf-parse failed:', errorMsg);
     }
 
@@ -65,6 +79,14 @@ export class FileParserService {
     try {
       const pdfExtract = new PDFExtract();
       const data = await pdfExtract.extractBuffer(dataBuffer);
+
+      // Check page count limit
+      if (data.pages.length > 50) {
+        throw new Error(
+          `PDF has too many pages (${data.pages.length}). Maximum is 50 pages. ` +
+          'Please split your document or upload key sections only.'
+        );
+      }
 
       let text = '';
       for (const page of data.pages) {
@@ -77,13 +99,19 @@ export class FileParserService {
       }
 
       if (text.trim().length > 50) {
-        console.log(`✅ PDF parsed with pdf.js-extract: ${text.length} characters`);
+        console.log(`✅ PDF parsed with pdf.js-extract: ${text.length} characters, ${data.pages.length} pages`);
         return text;
       } else {
         console.warn('⚠️ pdf.js-extract extracted very little text');
       }
     } catch (secondError) {
       const errorMsg = secondError instanceof Error ? secondError.message : String(secondError);
+
+      // Re-throw page count errors
+      if (errorMsg.includes('too many pages')) {
+        throw secondError;
+      }
+
       console.error('pdf.js-extract failed:', errorMsg);
     }
 
