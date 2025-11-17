@@ -8,6 +8,7 @@ import chatRoutes from "./app/routes/chat.routes";
 import authRoutes from "./app/routes/auth.routes";
 import documentsRoutes from "./app/routes/documents.routes";
 import insightsRoutes from './app/routes/insights.routes';
+import contradictionsRoutes from './app/routes/validation.routes';
 
 const app = express();
 
@@ -44,8 +45,8 @@ app.use("/api", searchRoutes);
 app.use("/api", chatRoutes);
 app.use("/api", documentsRoutes);
 app.use('/api/insights', insightsRoutes);
+app.use('/api/contradictions', contradictionsRoutes);
 
-// Test Supabase connection
 app.get("/api/test-db", async (req, res) => {
   try {
     const { createClient } = await import("@supabase/supabase-js");

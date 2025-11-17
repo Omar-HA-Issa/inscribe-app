@@ -108,7 +108,7 @@ export const Summary = () => {
     return (
       <div className="space-y-8 animate-fade-in">
         <div>
-          <h2 className="text-3xl font-semibold mb-2 lowercase">summary</h2>
+          <h2 className="text-3xl font-semibold mb-2">Summary</h2>
           <p className="text-muted-foreground">AI-generated document overview</p>
         </div>
 
@@ -141,7 +141,7 @@ export const Summary = () => {
     return (
       <div className="space-y-8 animate-fade-in">
         <div>
-          <h2 className="text-3xl font-semibold mb-2 lowercase">summary</h2>
+          <h2 className="text-3xl font-semibold mb-2">Summary</h2>
           <p className="text-muted-foreground">AI-generated document overview</p>
         </div>
 
@@ -164,7 +164,7 @@ export const Summary = () => {
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-3xl font-semibold mb-1 lowercase">summary</h2>
+          <h2 className="text-3xl font-semibold mb-1">Summary</h2>
           <p className="text-muted-foreground">
             AI-generated document overview & key insights
           </p>

@@ -194,7 +194,7 @@ Confidence: ${insight.confidence}`;
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-semibold mb-1 lowercase">hidden insights</h2>
+          <h2 className="text-3xl font-semibold mb-1">Hidden Insights</h2>
           <p className="text-muted-foreground text-sm">AI-discovered patterns and non-obvious connections</p>
         </div>
 

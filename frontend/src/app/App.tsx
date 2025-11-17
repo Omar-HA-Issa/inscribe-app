@@ -20,7 +20,7 @@ import AuthConfirm from '../features/auth/pages/AuthConfirm.tsx';
 import DocumentLayout from '../features/pages/documents/DocumentLayout.tsx';
 import { Summary } from '../features/pages/documents/Summary.tsx';
 import { Insights } from '../features/pages/documents/Insights.tsx';
-import { Contradictions } from '../features/pages/documents/Contradictions.tsx';
+import { Validator } from '../features/pages/documents/Validation.tsx';
 import { Visuals } from '../features/pages/documents/Visuals.tsx';
 import { Report } from '../features/pages/documents/Report.tsx';
 // Import Chat if you have it, otherwise create a placeholder:
@@ -82,7 +82,7 @@ const App = () => (
               {/* All document tab routes */}
               <Route path="summary" element={<Summary />} />
               <Route path="insights" element={<Insights />} />
-              <Route path="contradictions" element={<Contradictions />} />
+              <Route path="contradictions" element={<Validator />} />
               <Route path="visuals" element={<Visuals />} />
               <Route path="report" element={<Report />} />
               <Route path="chat" element={<Chat />} />
