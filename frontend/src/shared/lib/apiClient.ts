@@ -215,12 +215,27 @@ export async function uploadDocument(file: File) {
     if (res.status === 401) {
       throw new Error("Not authenticated");
     }
-    const error = await res.json().catch(() => ({ error: "Upload failed" }));
-    throw new Error(error.error || error.message || "Upload failed");
+
+    let errorPayload: any = {};
+    try {
+      errorPayload = await res.json();
+    } catch {
+
+    }
+    if (res.status === 409 && errorPayload?.code === "DUPLICATE_DOCUMENT") {
+      throw new Error(
+        errorPayload.message || "This document already exists in your library."
+      );
+    }
+
+    throw new Error(
+      errorPayload.error || errorPayload.message || "Upload failed"
+    );
   }
 
   return res.json();
 }
+
 
 /** POST /api/chat - Send a chat query */
 export async function sendChatQuery(query: string, limit: number = 5) {

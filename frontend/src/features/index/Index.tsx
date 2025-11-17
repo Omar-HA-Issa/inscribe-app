@@ -40,22 +40,28 @@ const Index = () => {
           description: `${response.document.file_name || selectedFile.name} has been uploaded and processed.`,
         });
 
-        // Save as last viewed document
         localStorage.setItem('lastViewedDocument', response.document.id);
 
-        // Navigate to the document's summary page
         navigate(`/documents/${response.document.id}/summary`);
       } else {
         throw new Error(response.message || "Upload failed");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ Upload error:", error);
+
+      const errorMessage =
+          error?.message?.includes("already exists")
+              ? error.message
+              : error instanceof Error
+                  ? error.message
+                  : "Failed to upload document. Please try again.";
+
       toast({
         title: "Upload failed",
-        description:
-          error instanceof Error ? error.message : "Failed to upload document. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
+
       setIsAnalyzing(false);
     }
   };
@@ -66,10 +72,8 @@ const Index = () => {
       description: `Viewing ${fileName}`,
     });
 
-    // Save as last viewed document
     localStorage.setItem('lastViewedDocument', documentId);
 
-    // Navigate to the document's summary page
     navigate(`/documents/${documentId}/summary`);
   };
 
