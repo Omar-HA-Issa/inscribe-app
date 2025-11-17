@@ -72,7 +72,7 @@ export default function DocumentLayout() {
   const tabs = [
     { id: "summary", label: "Summary" },
     { id: "insights", label: "Insights" },
-    { id: "contradictions", label: "Contradictions" },
+    { id: "contradictions", label: "Validation" },
     // { id: "visuals", label: "Visuals" },
     { id: "report", label: "Report" },
     { id: "chat", label: "Chat" },
