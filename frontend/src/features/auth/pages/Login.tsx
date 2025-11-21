@@ -7,7 +7,7 @@ import {Input} from "@/shared/ui/input.tsx";
 import {Label} from "@/shared/ui/label.tsx";
 import {useToast} from "@/shared/hooks/use-toast.ts";
 import {useAuth} from "@/features/auth/context/AuthContext.tsx";
-import animationData from "@/shared/assets/animations/loading.json";
+import animationData from "@/shared/assets/animations/logo.json";
 
 export default function Login() {
   const [email, setEmail] = useState("");

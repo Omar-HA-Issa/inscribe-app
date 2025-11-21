@@ -1,6 +1,6 @@
 import {LogOut, Settings} from "lucide-react";
 import {useEffect, useRef, useState} from "react";
-import Logo from "@/shared/assets/images/DocuMind_Logo.png";
+import Logo from "@/shared/assets/images/logo.png";
 
 interface HeaderProps {
   activeTab: string;

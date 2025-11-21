@@ -2,7 +2,7 @@ import { useParams, Link, Outlet, useLocation, useNavigate } from "react-router-
 import { useEffect, useState } from "react";
 import { api } from "@/shared/lib/api";
 import { LogOut, Settings, FileText, ArrowLeft } from "lucide-react";
-import Logo from "@/shared/assets/images/DocuMind_Logo.png";
+import Logo from "@/shared/assets/images/logo.png";
 // Fix paths based on actual location
 import { Chat } from "../chat/Chat.tsx";
 import { Sidebar } from "../chat/Sidebar.tsx";
@@ -202,7 +202,7 @@ export default function DocumentLayout() {
             {/* Logo + Tabs */}
             <div className="flex items-center gap-8">
               <div className="flex items-center gap-2">
-                <img src={Logo} alt="DocuMind Logo" className="w-7 h-7 object-contain" />
+                <img src={Logo} alt="DocuMind Logo" className="w-9 h-9 object-contain" />
                 <span
                   className="text-lg font-semibold tracking-tight text-foreground"
                   style={{ textShadow: "0 0 8px rgba(211,211,211,0.3)" }}

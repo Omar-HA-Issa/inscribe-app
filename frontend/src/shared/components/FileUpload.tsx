@@ -227,122 +227,115 @@ export const FileUpload = ({
       </div>
 
       {!showLibrary ? (
-          <div className="w-full max-w-4xl space-y-6">
-            {/* Upload New Document */}
-            <div
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                className={cn(
-                    "relative p-16 rounded-2xl transition-all cursor-pointer",
-                    "bg-card shadow-card hover:shadow-hover",
-              isDragging ? "shadow-glow" : ""
-            )}
-          >
-            <input
-              type="file"
-              accept=".pdf,.txt,.docx"
-              onChange={handleFileInput}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
-
-            <div className="flex flex-col items-center gap-6">
-              <div className="p-6 rounded-full bg-muted">
-                {isDragging ? (
-                  <FileText className="w-12 h-12 text-foreground" />
-                ) : (
-                  <Upload className="w-12 h-12 text-foreground" />
-                )}
-              </div>
-
-              <div className="text-center">
-                <p className="text-xl font-medium mb-2">
-                  {isDragging ? "Drop your document here" : "Upload new document"}
-                </p>
-                <p className="text-muted-foreground">
-                  Drag & drop or click to browse
-                </p>
-                <p className="text-sm text-muted-foreground mt-4">
-                  Supports PDF, TXT, and DOCX files (max 10MB, 50 pages for PDFs)
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-background text-muted-foreground">or</span>
-            </div>
-          </div>
-
-          {/* Select Existing Document */}
-          <button
-            onClick={() => setShowLibrary(true)}
-            className="w-full p-16 rounded-2xl transition-all
-                       bg-card hover:bg-muted shadow-card hover:shadow-hover
-                       flex flex-col items-center gap-6 group"
-          >
-            <div className="p-6 rounded-full bg-muted group-hover:bg-card transition-all">
-              <Clock className="w-12 h-12 text-foreground" />
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-medium mb-2">Select from library</p>
-              <p className="text-muted-foreground">
-                Choose a previously uploaded document
-              </p>
-            </div>
-          </button>
-        </div>
-      ) : (
-        /* Document Library View */
-        <div className="w-full max-w-4xl">
-          <div className="bg-card rounded-2xl shadow-card p-6">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-semibold mb-1">Document Library</h2>
-                <p className="text-muted-foreground text-sm">
-                  {filteredDocuments.length} document{filteredDocuments.length !== 1 ? 's' : ''}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowLibrary(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium
-                           text-muted-foreground hover:text-foreground
-                           bg-muted hover:bg-card transition-all"
+          <div className="w-full max-w-5xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Upload New Document */}
+              <div
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  className={cn(
+                      "relative p-16 rounded-2xl transition-all cursor-pointer h-full",
+                      "bg-card shadow-card hover:shadow-hover",
+                      isDragging ? "shadow-glow" : ""
+                  )}
               >
-                Upload New
+                <input
+                    type="file"
+                    accept=".pdf,.txt,.docx"
+                    onChange={handleFileInput}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+
+                <div className="flex flex-col items-center gap-6">
+                  <div className="p-6 rounded-full bg-muted">
+                    {isDragging ? (
+                        <FileText className="w-12 h-12 text-foreground"/>
+                    ) : (
+                        <Upload className="w-12 h-12 text-foreground"/>
+                    )}
+                  </div>
+
+                  <div className="text-center">
+                    <p className="text-xl font-medium mb-2">
+                      {isDragging ? "Drop your document here" : "Upload new document"}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Drag & drop or click to browse
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-4">
+                      Supports PDF, TXT, and DOCX files (max 10MB, 50 pages for PDFs)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Select Existing Document */}
+              <button
+                  onClick={() => setShowLibrary(true)}
+                  className="w-full p-16 rounded-2xl transition-all
+                 bg-card hover:bg-muted shadow-card hover:shadow-hover
+                 flex flex-col items-center gap-6 group h-full"
+              >
+                <div className="p-6 rounded-full bg-muted group-hover:bg-card transition-all">
+                  <Clock className="w-12 h-12 text-foreground"/>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-medium mb-2">Select from library</p>
+                  <p className="text-muted-foreground">
+                    Choose a previously uploaded document
+                  </p>
+                </div>
               </button>
             </div>
+          </div>
 
-            {/* Search */}
-            <div className="relative mb-6">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search documents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-lg
+      ) : (
+          /* Document Library View */
+          <div className="w-full max-w-4xl">
+            <div className="bg-card rounded-2xl shadow-card p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-semibold mb-1">Document Library</h2>
+                  <p className="text-muted-foreground text-sm">
+                    {filteredDocuments.length} document{filteredDocuments.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <button
+                    onClick={() => setShowLibrary(false)}
+                    className="px-4 py-2 rounded-lg text-sm font-medium
+                           text-muted-foreground hover:text-foreground
+                           bg-muted hover:bg-card transition-all"
+                >
+                  Upload New
+                </button>
+              </div>
+
+              {/* Search */}
+              <div className="relative mb-6">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"/>
+                <input
+                    type="text"
+                    placeholder="Search documents..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 rounded-lg
                            bg-muted border border-border
                            text-foreground placeholder:text-muted-foreground
                            focus:outline-none focus:ring-2 focus:ring-accent/50
                            transition-all"
-              />
-            </div>
-
-            {/* Document List */}
-            {isLoadingDocs ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-4 border-chart-mid border-t-transparent rounded-full animate-spin" />
+                />
               </div>
-            ) : filteredDocuments.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+
+              {/* Document List */}
+              {isLoadingDocs ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-8 h-8 border-4 border-chart-mid border-t-transparent rounded-full animate-spin"/>
+                  </div>
+              ) : filteredDocuments.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground">
                   {searchQuery ? 'No documents match your search' : 'No documents uploaded yet'}
                 </p>
