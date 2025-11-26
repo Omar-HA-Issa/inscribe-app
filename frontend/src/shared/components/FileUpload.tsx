@@ -1,7 +1,19 @@
-import {useCallback, useEffect, useState} from "react";
-import {FileText, Upload, ArrowLeft, Clock, Search, Trash2} from "lucide-react";
-import {cn} from "@/shared/lib/utils.ts";
-import {fetchUserDocuments} from "@/shared/lib/apiClient.ts";
+/**
+ * FileUpload Component
+ * SOLID Principles:
+ * - Single Responsibility: Focused on UI rendering
+ * - Separation of Concerns: API logic delegated to hooks and utilities
+ * - Dependency Inversion: Uses abstracted hooks and utilities
+ */
+
+import { useCallback, useEffect, useReducer, useState } from "react";
+import { FileText, Upload, ArrowLeft, Clock, Search, Trash2 } from "lucide-react";
+import { cn } from "@/shared/lib/utils.ts";
+import { useAsync } from "@/shared/hooks/useAsync";
+import { useDocumentDelete } from "@/shared/hooks/useFileUpload";
+import { fetchUserDocuments } from "@/shared/lib/apiClient.ts";
+import { validateFile, formatFileSize, formatDate } from "@/shared/lib/validation";
+import { ApiError } from "@/shared/lib/errorHandler";
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -19,13 +31,58 @@ interface Document {
   file_size: number;
 }
 
-// File validation constants
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_TYPES = [
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain'
-];
+/**
+ * Reducer state for document library view
+ */
+interface LibraryState {
+  documents: Document[];
+  isLoading: boolean;
+  error: string | null;
+  searchQuery: string;
+  deleteConfirm: { id: string; name: string } | null;
+}
+
+type LibraryAction =
+  | { type: 'SET_DOCUMENTS'; payload: Document[] }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_SEARCH'; payload: string }
+  | { type: 'SET_DELETE_CONFIRM'; payload: { id: string; name: string } | null }
+  | { type: 'REMOVE_DOCUMENT'; payload: string }
+  | { type: 'RESET' };
+
+/**
+ * Reducer for managing library state
+ */
+function libraryReducer(state: LibraryState, action: LibraryAction): LibraryState {
+  switch (action.type) {
+    case 'SET_DOCUMENTS':
+      return { ...state, documents: action.payload, error: null, isLoading: false };
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, isLoading: false };
+    case 'SET_SEARCH':
+      return { ...state, searchQuery: action.payload };
+    case 'SET_DELETE_CONFIRM':
+      return { ...state, deleteConfirm: action.payload };
+    case 'REMOVE_DOCUMENT':
+      return {
+        ...state,
+        documents: state.documents.filter(d => d.id !== action.payload),
+      };
+    case 'RESET':
+      return {
+        documents: [],
+        isLoading: false,
+        error: null,
+        searchQuery: '',
+        deleteConfirm: null,
+      };
+    default:
+      return state;
+  }
+}
 
 export const FileUpload = ({
   onFileSelect,
@@ -35,50 +92,56 @@ export const FileUpload = ({
 }: FileUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
+  // Use reducer for related library state
+  const [libraryState, dispatch] = useReducer(libraryReducer, {
+    documents: [],
+    isLoading: false,
+    error: null,
+    searchQuery: '',
+    deleteConfirm: null,
+  });
+
+  // Use custom hook for document fetching
+  const fetchDocuments = useCallback(() => fetchUserDocuments(), []);
+  const { status: fetchStatus, data: documentsData, execute: loadDocuments } = useAsync(
+    fetchDocuments,
+    false
+  );
+
+  // Use custom hook for document deletion
+  const { deleteDocument, isDeleting } = useDocumentDelete();
+
+  // Update library state when documents are fetched
   useEffect(() => {
-    if (showLibrary) {
+    if (fetchStatus === 'success' && documentsData) {
+      dispatch({
+        type: 'SET_DOCUMENTS',
+        payload: documentsData.documents || [],
+      });
+    } else if (fetchStatus === 'loading') {
+      dispatch({ type: 'SET_LOADING', payload: true });
+    } else if (fetchStatus === 'error') {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: 'Failed to load documents',
+      });
+    }
+  }, [fetchStatus, documentsData, dispatch]);
+
+  // Load documents when library view is opened
+  useEffect(() => {
+    if (showLibrary && libraryState.documents.length === 0) {
       loadDocuments();
     }
-  }, [showLibrary]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showLibrary, libraryState.documents.length]);
 
-  const loadDocuments = async () => {
-    setIsLoadingDocs(true);
-    try {
-      const response = await fetchUserDocuments();
-      setDocuments(response.documents || []);
-    } catch (error) {
-      console.error("Failed to load documents:", error);
-    } finally {
-      setIsLoadingDocs(false);
-    }
-  };
-
-  const validateFile = (file: File): string | null => {
-    // Check file type
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return 'Unsupported file type. Please upload PDF, DOCX, or TXT files only.';
-    }
-
-    // Check file size
-    if (file.size > MAX_FILE_SIZE) {
-      return `File too large. Maximum size is 10MB.\nYour file: ${formatFileSize(file.size)}`;
-    }
-
-    // Check if file is empty
-    if (file.size === 0) {
-      return 'File is empty. Please upload a file with content.';
-    }
-
-    return null; // Valid file
-  };
-
+  /**
+   * Handles file drop
+   */
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -87,9 +150,9 @@ export const FileUpload = ({
       const file = e.dataTransfer.files[0];
       if (!file) return;
 
-      const error = validateFile(file);
-      if (error) {
-        setUploadError(error);
+      const validation = validateFile(file);
+      if (!validation.isValid) {
+        setUploadError(validation.error || 'Invalid file');
         return;
       }
 
@@ -99,24 +162,33 @@ export const FileUpload = ({
     [onFileSelect]
   );
 
+  /**
+   * Handles drag over
+   */
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
   }, []);
 
+  /**
+   * Handles drag leave
+   */
   const handleDragLeave = useCallback(() => {
     setIsDragging(false);
   }, []);
 
+  /**
+   * Handles file input change
+   */
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
-      const error = validateFile(file);
-      if (error) {
-        setUploadError(error);
-        e.target.value = ''; // Reset input
+      const validation = validateFile(file);
+      if (!validation.isValid) {
+        setUploadError(validation.error || 'Invalid file');
+        e.target.value = '';
         return;
       }
 
@@ -126,81 +198,72 @@ export const FileUpload = ({
     [onFileSelect]
   );
 
-  const handleDocumentSelect = (doc: Document) => {
-    if (onSelectExistingDocument) {
-      onSelectExistingDocument(doc.id, doc.file_name);
-    }
-  };
+  /**
+   * Handles document selection from library
+   */
+  const handleDocumentSelect = useCallback(
+    (doc: Document) => {
+      if (onSelectExistingDocument) {
+        onSelectExistingDocument(doc.id, doc.file_name);
+      }
+    },
+    [onSelectExistingDocument]
+  );
 
-  const handleDeleteDocument = async (e: React.MouseEvent, docId: string, fileName: string) => {
-    e.stopPropagation();
-    setDeleteConfirm({ id: docId, name: fileName });
-  };
+  /**
+   * Initiates document deletion
+   */
+  const handleDeleteDocument = useCallback(
+    (e: React.MouseEvent, docId: string, fileName: string) => {
+      e.stopPropagation();
+      dispatch({
+        type: 'SET_DELETE_CONFIRM',
+        payload: { id: docId, name: fileName },
+      });
+    },
+    []
+  );
 
-  const confirmDelete = async () => {
-    if (!deleteConfirm) return;
+  /**
+   * Confirms and executes document deletion
+   */
+  const confirmDelete = useCallback(async () => {
+    const { id: docId } = libraryState.deleteConfirm || {};
+    if (!docId) return;
 
-    const { id: docId, name: fileName } = deleteConfirm;
     setDeletingDocId(docId);
-    setDeleteConfirm(null);
 
     try {
-      const token = localStorage.getItem('access_token');
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
-      const response = await fetch(`${API_URL}/api/documents/${docId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to delete document');
-      }
-
-      const data = await response.json();
-      setDocuments(docs => docs.filter(d => d.id !== docId));
-      console.log(`✅ ${data.message || 'Document deleted successfully'}`);
+      await deleteDocument(docId);
+      dispatch({ type: 'REMOVE_DOCUMENT', payload: docId });
+      dispatch({ type: 'SET_DELETE_CONFIRM', payload: null });
     } catch (error) {
-      console.error('Failed to delete document:', error);
-      alert(error instanceof Error ? error.message : 'Failed to delete document. Please try again.');
+      const errorMessage = error instanceof ApiError ? error.userMessage : 'Failed to delete document';
+      setUploadError(errorMessage);
     } finally {
       setDeletingDocId(null);
     }
-  };
+  }, [libraryState.deleteConfirm, deleteDocument]);
 
-  const cancelDelete = () => {
-    setDeleteConfirm(null);
-  };
+  /**
+   * Cancels deletion
+   */
+  const cancelDelete = useCallback(() => {
+    dispatch({ type: 'SET_DELETE_CONFIRM', payload: null });
+  }, []);
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return date.toLocaleDateString();
-  };
-
-  const filteredDocuments = documents.filter(doc =>
-    doc.file_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    doc.title.toLowerCase().includes(searchQuery.toLowerCase())
+  // Filter documents based on search query
+  const filteredDocuments = libraryState.documents.filter(doc =>
+    doc.file_name.toLowerCase().includes(libraryState.searchQuery.toLowerCase()) ||
+    doc.title.toLowerCase().includes(libraryState.searchQuery.toLowerCase())
   );
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 animate-fade-in relative">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-6 py-12 animate-fade-in relative"
+      role="main"
+      aria-label="File upload and document management"
+    >
       {/* Back to Current Document Button */}
       {hasExistingDocument && onBackToDocument && (
         <button
@@ -210,6 +273,7 @@ export const FileUpload = ({
                      text-muted-foreground hover:text-foreground
                      shadow-card hover:shadow-hover
                      group"
+          aria-label="Return to current document"
         >
           <ArrowLeft className="w-5 h-5 transition-transform group-hover:-translate-x-1" />
           <span className="font-medium">Back to Document</span>
@@ -239,12 +303,16 @@ export const FileUpload = ({
                       "bg-card shadow-card hover:shadow-hover",
                       isDragging ? "shadow-glow" : ""
                   )}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Drop area for file upload or click to browse"
               >
                 <input
                     type="file"
                     accept=".pdf,.txt,.docx"
                     onChange={handleFileInput}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    aria-label="Select file to upload"
                 />
 
                 <div className="flex flex-col items-center gap-6">
@@ -314,47 +382,58 @@ export const FileUpload = ({
 
               {/* Search */}
               <div className="relative mb-6">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"/>
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                     type="text"
                     placeholder="Search documents..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    value={libraryState.searchQuery}
+                    onChange={(e) => dispatch({ type: 'SET_SEARCH', payload: e.target.value })}
                     className="w-full pl-10 pr-4 py-2 rounded-lg
                            bg-muted border border-border
                            text-foreground placeholder:text-muted-foreground
                            focus:outline-none focus:ring-2 focus:ring-accent/50
                            transition-all"
+                    aria-label="Search documents by name"
                 />
               </div>
 
               {/* Document List */}
-              {isLoadingDocs ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="w-8 h-8 border-4 border-chart-mid border-t-transparent rounded-full animate-spin"/>
+              {libraryState.isLoading ? (
+                  <div
+                    className="flex items-center justify-center py-12"
+                    role="status"
+                    aria-label="Loading documents"
+                  >
+                    <div className="w-8 h-8 border-4 border-chart-mid border-t-transparent rounded-full animate-spin" />
                   </div>
               ) : filteredDocuments.length === 0 ? (
                   <div className="text-center py-12">
                     <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">
-                  {searchQuery ? 'No documents match your search' : 'No documents uploaded yet'}
-                </p>
+                    <p className="text-muted-foreground">
+                      {libraryState.searchQuery ? 'No documents match your search' : 'No documents uploaded yet'}
+                    </p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div
+                className="space-y-2 max-h-96 overflow-y-auto"
+                role="list"
+                aria-label="List of uploaded documents"
+              >
                 {filteredDocuments.map((doc) => (
                   <div
                     key={doc.id}
                     className="w-full p-4 rounded-lg
                                bg-muted hover:bg-card hover:shadow-hover
                                transition-all group flex items-start gap-3"
+                    role="listitem"
                   >
                     <button
                       onClick={() => handleDocumentSelect(doc)}
                       className="flex-1 flex items-start gap-3 min-w-0 text-left"
+                      aria-label={`Select document: ${doc.file_name}`}
                     >
                       <div className="p-2 bg-card group-hover:bg-muted rounded-lg transition-all">
-                        <FileText className="w-5 h-5 text-foreground" />
+                        <FileText className="w-5 h-5 text-foreground" aria-hidden="true" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-foreground truncate">
@@ -362,7 +441,7 @@ export const FileUpload = ({
                         </p>
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span>{formatFileSize(doc.file_size)}</span>
-                          <span>•</span>
+                          <span aria-hidden="true">•</span>
                           <span>{formatDate(doc.created_at)}</span>
                         </div>
                       </div>
@@ -375,12 +454,15 @@ export const FileUpload = ({
                       className="p-2 rounded-lg opacity-0 group-hover:opacity-100
                                  text-muted-foreground hover:text-red-500 hover:bg-red-500/10
                                  transition-all disabled:opacity-50"
-                      title="Delete document"
+                      aria-label={`Delete document: ${doc.file_name}`}
                     >
                       {deletingDocId === doc.id ? (
-                        <div className="w-5 h-5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                        <div
+                          className="w-5 h-5 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"
+                          aria-hidden="true"
+                        />
                       ) : (
-                        <Trash2 className="w-5 h-5" />
+                        <Trash2 className="w-5 h-5" aria-hidden="true" />
                       )}
                     </button>
                   </div>
@@ -393,21 +475,27 @@ export const FileUpload = ({
 
       {/* Upload Error Notification */}
       {uploadError && (
-        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-50 max-w-md w-full px-4 animate-slide-in">
+        <div
+          className="fixed top-8 left-1/2 -translate-x-1/2 z-50 max-w-md w-full px-4 animate-slide-in"
+          role="alert"
+          aria-live="assertive"
+          aria-labelledby="error-title"
+        >
           <div className="bg-card border border-red-500/50 rounded-xl p-4 shadow-xl">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
-                <Upload className="w-5 h-5 text-red-500" />
+                <Upload className="w-5 h-5 text-red-500" aria-hidden="true" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-red-500 mb-1">Upload Failed</h3>
+                <h3 className="font-semibold text-red-500 mb-1" id="error-title">Upload Failed</h3>
                 <p className="text-sm text-foreground whitespace-pre-line">{uploadError}</p>
               </div>
               <button
                 onClick={() => setUploadError(null)}
                 className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Dismiss error notification"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -417,32 +505,40 @@ export const FileUpload = ({
       )}
 
       {/* Custom Delete Confirmation Modal */}
-      {deleteConfirm && (
+      {libraryState.deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-background/80 backdrop-blur-sm"
             onClick={cancelDelete}
+            aria-hidden="true"
           />
 
           {/* Modal */}
-          <div className="relative bg-card rounded-2xl shadow-xl max-w-md w-full p-6 animate-slide-in">
+          <div
+            className="relative bg-card rounded-2xl shadow-xl max-w-md w-full p-6 animate-slide-in"
+            role="alertdialog"
+            aria-labelledby="delete-modal-title"
+            aria-describedby="delete-modal-description"
+          >
             <div className="flex items-start gap-4">
               <div className="p-3 bg-red-500/10 rounded-lg">
-                <Trash2 className="w-6 h-6 text-red-500" />
+                <Trash2 className="w-6 h-6 text-red-500" aria-hidden="true" />
               </div>
 
               <div className="flex-1">
-                <h3 className="text-xl font-semibold mb-2">Delete Document</h3>
-                <p className="text-muted-foreground mb-1">
-                  Are you sure you want to delete
-                </p>
-                <p className="text-foreground font-medium mb-3">
-                  "{deleteConfirm.name}"?
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  This action cannot be undone.
-                </p>
+                <h3 className="text-xl font-semibold mb-2" id="delete-modal-title">Delete Document</h3>
+                <div id="delete-modal-description">
+                  <p className="text-muted-foreground mb-1">
+                    Are you sure you want to delete
+                  </p>
+                  <p className="text-foreground font-medium mb-3">
+                    "{libraryState.deleteConfirm.name}"?
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    This action cannot be undone.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -457,11 +553,12 @@ export const FileUpload = ({
               </button>
               <button
                 onClick={confirmDelete}
+                disabled={isDeleting}
                 className="flex-1 px-4 py-2 rounded-lg font-medium
                            bg-red-500 hover:bg-red-600 text-white
-                           transition-all"
+                           transition-all disabled:opacity-50"
               >
-                Delete
+                {isDeleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

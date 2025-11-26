@@ -4,53 +4,55 @@ import {
   generateCrossDocumentInsights,
 } from '../../core/services/insights.service';
 import { requireAuth } from '../middleware/auth.middleware';
+import { validateUUID } from '../middleware/validation';
+import { UnauthorizedError, BadRequestError, InternalServerError } from '../../shared/errors';
+import { rateLimitMiddleware } from '../middleware/rateLimiter';
+import { logger } from '../../shared/utils/logger';
 
 const router = Router();
 
-router.post('/document/:documentId', requireAuth, async (req: Request, res: Response) => {
+router.post('/document/:documentId', requireAuth, rateLimitMiddleware.default, async (req: Request, res: Response, next) => {
   try {
     const { documentId } = req.params;
+    validateUUID(documentId, 'documentId');
     const { forceRegenerate } = req.body;
     const userId = req.authUserId;
 
     if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      throw new UnauthorizedError('User not authenticated');
     }
 
-    console.log(
-      '🔍 Generating insights for document:',
-      documentId,
-      forceRegenerate ? '(force)' : '(cache-first)'
+    logger.info(
+      `Generating insights for document: ${documentId} ${forceRegenerate ? '(force regenerate)' : '(cache-first)'}`
     );
 
     const result = await generateDocumentInsights(documentId, userId, forceRegenerate || false);
     return res.status(200).json(result);
   } catch (error: any) {
-    console.error('Error generating insights:', error);
-    return res.status(500).json({
-      error: 'Failed to generate insights',
-      message: error.message,
-    });
+    next(error);
   }
 });
 
-router.post('/cross-document', requireAuth, async (req: Request, res: Response) => {
+router.post('/cross-document', requireAuth, rateLimitMiddleware.default, async (req: Request, res: Response, next) => {
   try {
     const { documentIds, forceRegenerate } = req.body;
     const userId = req.authUserId;
 
     if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      throw new UnauthorizedError('User not authenticated');
     }
 
     if (!Array.isArray(documentIds) || documentIds.length === 0) {
-      return res.status(400).json({ error: 'documentIds must be a non-empty array' });
+      throw new BadRequestError('documentIds must be a non-empty array');
     }
 
-    console.log(
-      '🔍 Generating cross-document insights:',
-      documentIds.length,
-      forceRegenerate ? '(force)' : '(cache-first)'
+    // Validate all document IDs
+    documentIds.forEach((docId, index) => {
+      validateUUID(docId, `documentIds[${index}]`);
+    });
+
+    logger.info(
+      `Generating cross-document insights: ${documentIds.length} docs ${forceRegenerate ? '(force regenerate)' : '(cache-first)'}`
     );
     const result = await generateCrossDocumentInsights(
       documentIds,
@@ -59,11 +61,7 @@ router.post('/cross-document', requireAuth, async (req: Request, res: Response) 
     );
     return res.status(200).json(result);
   } catch (error: any) {
-    console.error('Error generating cross-document insights:', error);
-    return res.status(500).json({
-      error: 'Failed to generate insights',
-      message: error.message,
-    });
+    next(error);
   }
 });
 

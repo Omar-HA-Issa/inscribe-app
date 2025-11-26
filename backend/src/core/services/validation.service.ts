@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '../../shared/utils/logger';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -132,7 +133,7 @@ export async function detectWithinDocument(
   const cacheKey = getCacheKey([documentId]);
   const cached = getCachedResult(cacheKey);
   if (cached) {
-    console.log('[Validator] Returning cached results');
+    logger.info('[Validator] Returning cached results');
     return cached;
   }
 
@@ -178,7 +179,7 @@ export async function detectAcrossDocuments(
   const cacheKey = getCacheKey(allDocIds);
   const cached = getCachedResult(cacheKey);
   if (cached) {
-    console.log('[Validator] Returning cached results');
+    logger.info('[Validator] Returning cached results');
     return cached;
   }
 
@@ -629,9 +630,9 @@ export function clearAnalysisCache(documentIds?: string[]): void {
       }
     }
     keysToDelete.forEach(key => analysisCache.delete(key));
-    console.log(`[Validator] Cleared ${keysToDelete.length} cache entries for documents: ${documentIds.join(', ')}`);
+    logger.info(`[Validator] Cleared ${keysToDelete.length} cache entries for documents: ${documentIds.join(', ')}`);
   } else {
     analysisCache.clear();
-    console.log('[Validator] Cleared all cache');
+    logger.info('[Validator] Cleared all cache');
   }
 }

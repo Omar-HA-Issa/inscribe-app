@@ -6,6 +6,10 @@ import { requireAuth } from "../middleware/auth.middleware";
 import { ChunkingService } from "../../core/services/chunking.service";
 import { FileParserService } from "../../core/services/fileParser.service";
 import { adminClient } from "../../core/clients/supabaseClient";
+import { validateUUID } from "../middleware/validation";
+import { BadRequestError, UnauthorizedError, ConflictError, InternalServerError } from "../../shared/errors";
+import { rateLimitMiddleware } from "../middleware/rateLimiter";
+import { logger } from "../../shared/utils/logger";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -57,16 +61,16 @@ async function embedInBatches(
     const batchNum = Math.floor(i / batchSize) + 1;
     const slice: string[] = texts.slice(i, i + batchSize);
 
-    console.log(
+    logger.info(
       `🔄 Processing batch ${batchNum}/${totalBatches} (${slice.length} chunks)...`
     );
 
     try {
       const vecs: number[][] = await EmbeddingService.generateEmbeddings(slice);
       out.push(...vecs);
-      console.log(`✅ Batch ${batchNum}/${totalBatches} complete`);
+      logger.info(`✅ Batch ${batchNum}/${totalBatches} complete`);
     } catch (error) {
-      console.error(`❌ Batch ${batchNum} failed:`, error);
+      logger.error(`❌ Batch ${batchNum} failed:`, { error });
       throw error;
     }
   }
@@ -101,7 +105,7 @@ async function normalizeChunksFromFile(
     // Remove null bytes that cause PostgreSQL errors
     const cleanText = text.replace(/\0/g, "");
 
-    console.log(
+    logger.info(
       `📄 Extracted ${cleanText.length} characters from ${file.originalname}`
     );
 
@@ -122,61 +126,46 @@ async function normalizeChunksFromFile(
     try {
       await fs.unlink(tempFilePath);
     } catch (err) {
-      console.error("Failed to delete temp file:", err);
+      logger.error("Failed to delete temp file:", { error: err });
     }
   }
 }
 
 router.post(
   "/upload",
+  rateLimitMiddleware.upload,
   (req, res, next) => {
     uploadRoutes.single("file")(req, res, (err) => {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
-          return res.status(400).json({
-            success: false,
-            message: "File too large. Maximum size is 10MB.",
-          });
+          return next(new BadRequestError("File too large. Maximum size is 10MB."));
         }
-        return res.status(400).json({
-          success: false,
-          message: err.message,
-        });
+        return next(new BadRequestError(err.message));
       } else if (err) {
-        return res.status(400).json({
-          success: false,
-          message: err.message,
-        });
+        return next(new BadRequestError(err.message));
       }
       next();
     });
   },
-  async (req: Request, res) => {
+  async (req: Request, res, next) => {
     try {
       if (!req.file) {
-        return res
-          .status(400)
-          .json({ success: false, message: "No file uploaded" });
+        throw new BadRequestError("No file uploaded");
       }
 
       const userId: string | null = req.authUserId ?? null;
       if (!userId) {
-        return res
-          .status(401)
-          .json({ success: false, message: "Unauthorized" });
+        throw new UnauthorizedError("User not authenticated");
       }
 
       const { originalname, mimetype, size, buffer } = req.file;
 
       // Additional validation
       if (size === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "File is empty. Please upload a file with content.",
-        });
+        throw new BadRequestError("File is empty. Please upload a file with content.");
       }
 
-      console.log(
+      logger.info(
         `\n--- Upload received: ${originalname} (${size} bytes, ${mimetype}) ---`
       );
 
@@ -197,24 +186,16 @@ router.post(
         .limit(1);
 
       if (existingErr) {
-        console.error("Error checking duplicate document:", existingErr);
-        return res.status(500).json({
-          success: false,
-          message: "Failed to check existing documents.",
-        });
+        logger.error("Error checking duplicate document:", { error: existingErr });
+        throw new InternalServerError("Failed to check existing documents.");
       }
 
       const existingDoc = existingDocs?.[0];
       if (existingDoc) {
-        console.log(
-          `⚠️ Duplicate upload detected for user ${userId}, hash ${fileHash}, existing doc id ${existingDoc.id}`
+        logger.info(
+          `Duplicate upload detected for user ${userId}, hash ${fileHash}, existing doc id ${existingDoc.id}`
         );
-        return res.status(409).json({
-          success: false,
-          code: "DUPLICATE_DOCUMENT",
-          message: `This document already exists in your library as "${existingDoc.file_name}".`,
-          document: existingDoc,
-        });
+        throw new ConflictError(`This document already exists in your library as "${existingDoc.file_name}".`);
       }
 
       // Only do heavy work if not a duplicate
@@ -223,17 +204,14 @@ router.post(
       console.timeEnd("chunking");
 
       if (!chunks.length) {
-        return res.status(400).json({
-          success: false,
-          message: "No text content found to chunk",
-        });
+        throw new BadRequestError("No text content found to chunk");
       }
-      console.log(`✅ Created ${chunks.length} chunk(s)`);
+      logger.info(`Created ${chunks.length} chunk(s)`);
 
       // Log chunk size for debugging
       const avgChunkSize =
         chunks.reduce((sum, c) => sum + c.text.length, 0) / chunks.length;
-      console.log(
+      logger.info(
         `📊 Average chunk size: ${Math.round(avgChunkSize)} characters`
       );
 
@@ -255,11 +233,8 @@ router.post(
         .single();
 
       if (docErr || !docIns) {
-        console.error("Supabase insert document error:", docErr);
-        return res.status(500).json({
-          success: false,
-          message: "Failed to create document record",
-        });
+        logger.error("Supabase insert document error:", { error: docErr });
+        throw new InternalServerError("Failed to create document record");
       }
 
       const documentId: string = docIns.id;
@@ -268,7 +243,7 @@ router.post(
       const texts: string[] = chunks.map((c: Chunk) => c.text);
       const BATCH_SIZE = 64;
 
-      console.log(
+      logger.info(
         `⏳ Generating embeddings for ${texts.length} chunks in batches of ${BATCH_SIZE}...`
       );
 
@@ -278,7 +253,7 @@ router.post(
           : await EmbeddingService.generateEmbeddings(texts);
       console.timeEnd("embeddings");
 
-      console.log(`✅ Generated ${vectors.length} embeddings`);
+      logger.info(`✅ Generated ${vectors.length} embeddings`);
 
       if (!vectors.length || vectors.length !== texts.length) {
         throw new Error("Failed to generate embeddings for all chunks");
@@ -308,7 +283,7 @@ router.post(
           .from("document_chunks")
           .insert(slice);
         if (chunkErr) {
-          console.error("Supabase insert chunks error:", chunkErr);
+          logger.error("Supabase insert chunks error:", { error: chunkErr });
           throw new Error("Failed to save chunks");
         }
       }
@@ -326,13 +301,7 @@ router.post(
         },
       });
     } catch (err: any) {
-      console.error(
-        "Error processing uploadRoutes:",
-        err?.message || err
-      );
-      console.error("Error stack:", err?.stack || err);
-      const msg = err?.message || "Upload failed. Please try again.";
-      return res.status(500).json({ success: false, message: msg });
+      next(err);
     }
   }
 );

@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
+import { logger } from "../../shared/utils/logger";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -32,18 +33,18 @@ export interface InsightResponse {
 
 function safeParseInsightsResponse(raw: string): Insight[] {
   if (!raw || !raw.trim()) {
-    console.warn("Empty AI response for insights");
+    logger.warn("Empty AI response for insights");
     return [];
   }
 
-  console.log("=== GPT-4 RESPONSE DEBUG ===");
-  console.log("Response length:", raw.length);
-  console.log("First 500 chars:", raw.slice(0, 500));
-  console.log("Last 500 chars:", raw.slice(-500));
-  console.log("=== END DEBUG ===");
+  logger.debug("=== GPT-4 RESPONSE DEBUG ===");
+  logger.debug(`Response length: ${raw.length}`);
+  logger.debug(`First 500 chars: ${raw.slice(0, 500)}`);
+  logger.debug(`Last 500 chars: ${raw.slice(-500)}`);
+  logger.debug("=== END DEBUG ===");
 
   let cleaned = raw.trim();
-  console.log("Raw AI insights response length:", cleaned.length);
+  logger.debug(`Raw AI insights response length: ${cleaned.length}`);
 
   // Strip ```json ... ``` or ``` ... ``` fences if they exist
   if (cleaned.startsWith("```")) {
@@ -68,10 +69,10 @@ function safeParseInsightsResponse(raw: string): Insight[] {
       return parsed.insights as Insight[];
     }
 
-    console.warn("Unexpected insights JSON structure. Returning empty array.");
+    logger.warn("Unexpected insights JSON structure. Returning empty array.");
     return [];
   } catch (error) {
-    console.error("Failed to parse AI insights JSON:", error);
+    logger.error("Failed to parse AI insights JSON:", { error });
     return [];
   }
 }
@@ -90,7 +91,7 @@ async function analyzeDocumentWithAI(
         "\n\n[Document truncated due to length...]"
       : content;
 
-  console.log(
+  logger.info(
     `📊 Analyzing document with ${content.length} chars (${truncatedContent.length} sent to GPT-4)`
   );
 
@@ -237,9 +238,9 @@ export async function generateDocumentInsights(
 
   if (cacheError) {
     // This includes the "Cannot coerce the result to a single JSON object" case
-    console.warn(
+    logger.warn(
       "Error reading cached insights (ok to continue):",
-      cacheError.message
+      { error: cacheError.message }
     );
   }
 
@@ -248,7 +249,7 @@ export async function generateDocumentInsights(
     const hours = cacheAgeMs / (1000 * 60 * 60);
 
     if (hours < 24) {
-      console.log("📦 Returning cached insights");
+      logger.info("📦 Returning cached insights");
       const filtered = (cached.insights as Insight[]).filter(
         (i) => i.category !== "correlation"
       );
@@ -270,12 +271,12 @@ export async function generateDocumentInsights(
     .single();
 
   if (docError || !doc) {
-    console.error("Error fetching document for insights:", docError);
+    logger.error("Error fetching document for insights:", { error: docError });
     throw new Error("Document not found");
   }
 
   // 3) Fetch ALL chunks
-  console.log(`📄 Fetching all chunks for document ${documentId}...`);
+  logger.info(`📄 Fetching all chunks for document ${documentId}...`);
   const { data: chunks, error: chunksError } = await supabase
     .from("document_chunks")
     .select("content, chunk_index")
@@ -283,18 +284,18 @@ export async function generateDocumentInsights(
     .order("chunk_index", { ascending: true });
 
   if (chunksError) {
-    console.error("Error fetching document chunks for insights:", chunksError);
+    logger.error("Error fetching document chunks for insights:", { error: chunksError });
     throw new Error("Failed to fetch document chunks");
   }
 
-  console.log(`✅ Fetched ${chunks?.length || 0} chunks`);
+  logger.info(`✅ Fetched ${chunks?.length || 0} chunks`);
 
   const fullContent =
     chunks && chunks.length > 0
       ? (chunks as any[]).map((c) => c.content).join("\n\n")
       : "";
 
-  console.log(`📊 Full document: ${fullContent.length} characters`);
+  logger.info(`📊 Full document: ${fullContent.length} characters`);
 
   // 4) Call OpenAI
   const insights = await analyzeDocumentWithAI(
@@ -302,7 +303,7 @@ export async function generateDocumentInsights(
     fullContent
   );
 
-  console.log(`✨ Generated ${insights.length} insights`);
+  logger.info(`✨ Generated ${insights.length} insights`);
 
   // 5) Cache insights in DB
   const { error: upsertError } = await supabase
@@ -320,9 +321,9 @@ export async function generateDocumentInsights(
     );
 
   if (upsertError) {
-    console.warn(
+    logger.warn(
       "Failed to upsert document_insights cache:",
-      upsertError.message
+      { error: upsertError.message }
     );
   }
 
@@ -355,7 +356,7 @@ export async function generateCrossDocumentInsights(
     .eq("user_id", userId);
 
   if (docsError) {
-    console.error("Error fetching documents for cross-document insights:", docsError);
+    logger.error("Error fetching documents for cross-document insights:", { error: docsError });
     throw new Error("Failed to fetch documents");
   }
 
@@ -382,7 +383,7 @@ export async function generateCrossDocumentInsights(
       .single();
 
     if (summaryError) {
-      console.warn("Error fetching summary for document:", doc.id, summaryError);
+      logger.warn("Error fetching summary for document:", { documentId: doc.id, error: summaryError });
       continue;
     }
 

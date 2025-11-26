@@ -3,6 +3,11 @@ import type { Request, Response } from "express";
 import { requireAuth } from "../middleware/auth.middleware";
 import { ChatService } from "../../core/services/chat.service";
 import { adminClient } from "../../core/clients/supabaseClient";
+import { validateQuestion, validateNumber, validateUUID } from "../middleware/validation";
+import { ValidationError, UnauthorizedError, BadRequestError, InternalServerError } from "../../shared/errors";
+import { rateLimitMiddleware } from "../middleware/rateLimiter";
+import { logger } from "../../shared/utils/logger";
+import { SEARCH_CONFIG } from "../../shared/constants/config";
 
 const router = Router();
 router.use(requireAuth);
@@ -11,11 +16,11 @@ router.use(requireAuth);
  * POST /api/chat
  * Body: { question: string, selectedDocumentIds?: string[], topK?: number, similarityThreshold?: number }
  */
-router.post("/chat", async (req: Request, res: Response) => {
+router.post("/chat", rateLimitMiddleware.chat, async (req: Request, res: Response, next) => {
   try {
     const userId: string | null = req.authUserId ?? null;
     if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      throw new UnauthorizedError("User not authenticated");
     }
 
     const {
@@ -25,18 +30,19 @@ router.post("/chat", async (req: Request, res: Response) => {
       similarityThreshold = 0.15,
     } = req.body || {};
 
-    // 🔍 DEBUG LOGGING
-    console.log('\n====== CHAT REQUEST ======');
-    console.log('User ID:', userId);
-    console.log('Question:', question);
-    console.log('Selected Document IDs:', selectedDocumentIds);
-    console.log('TopK:', topK);
-    console.log('Similarity Threshold:', similarityThreshold);
-    console.log('==========================\n');
+    // Validate inputs
+    validateQuestion(question);
+    const validTopK = validateNumber(topK, "topK", 1, SEARCH_CONFIG.MAX_TOP_K);
+    const validThreshold = validateNumber(similarityThreshold, "similarityThreshold", 0, 1);
 
-    if (!question || typeof question !== "string") {
-      return res.status(400).json({ success: false, message: "Missing question" });
+    // Validate document IDs if provided
+    if (selectedDocumentIds && Array.isArray(selectedDocumentIds)) {
+      selectedDocumentIds.forEach((docId, index) => {
+        validateUUID(docId, `selectedDocumentIds[${index}]`);
+      });
     }
+
+    logger.info(`Chat request from user ${userId}, question length: ${question.length}`);
 
     // Get user-scoped Supabase client (with RLS)
     const sb = adminClient();
@@ -44,24 +50,18 @@ router.post("/chat", async (req: Request, res: Response) => {
     // Use ChatService with optional document filtering
     const response = await ChatService.chat(
       question,
-      topK,
-      similarityThreshold,
+      validTopK,
+      validThreshold,
       selectedDocumentIds,
-      sb
+      sb,
+      userId
     );
 
-    // 🔍 DEBUG LOGGING
-    console.log('\n====== CHAT RESPONSE ======');
-    console.log('Success:', response.success);
-    console.log('Chunks Used:', response.chunksUsed);
-    console.log('Sources:', response.sources.length);
-    console.log('Answer Preview:', response.answer.substring(0, 100) + '...');
-    console.log('===========================\n');
+    logger.info(`Chat response generated with ${response.chunksUsed} chunks used`);
 
     return res.json(response);
   } catch (err: any) {
-    console.error("Chat error:", err?.message || err);
-    return res.status(500).json({ success: false, message: "Chat failed" });
+    next(err);
   }
 });
 
@@ -69,28 +69,27 @@ router.post("/chat", async (req: Request, res: Response) => {
  * POST /api/chat/summarize/:documentId
  * Summarize a specific document
  */
-router.post("/summarize/:documentId", async (req: Request, res: Response) => {
+router.post("/summarize/:documentId", rateLimitMiddleware.chat, async (req: Request, res: Response, next) => {
   try {
     const userId: string | null = req.authUserId ?? null;
     if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      throw new UnauthorizedError("User not authenticated");
     }
 
     const { documentId } = req.params;
-    const { maxChunks = 30 } = req.body || {};
+    validateUUID(documentId, "documentId");
 
-    console.log('\n====== SUMMARIZE REQUEST ======');
-    console.log('Document ID:', documentId);
-    console.log('Max Chunks:', maxChunks);
-    console.log('================================\n');
+    const { maxChunks = SEARCH_CONFIG.DEFAULT_MAX_CHUNKS } = req.body || {};
+    const validMaxChunks = validateNumber(maxChunks, "maxChunks", 1, 100);
+
+    logger.info(`Summarize request for document ${documentId}, maxChunks: ${validMaxChunks}`);
 
     const sb = adminClient();
-    const response = await ChatService.summarizeDocument(documentId, maxChunks, sb);
+    const response = await ChatService.summarizeDocument(documentId, validMaxChunks, sb);
 
     return res.json(response);
   } catch (err: any) {
-    console.error("Summarize error:", err?.message || err);
-    return res.status(500).json({ success: false, message: "Summarization failed" });
+    next(err);
   }
 });
 

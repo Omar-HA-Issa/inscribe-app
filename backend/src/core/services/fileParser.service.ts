@@ -2,6 +2,7 @@ import pdf from 'pdf-parse';
 import { PDFExtract } from 'pdf.js-extract';
 import mammoth from 'mammoth';
 import fs from 'fs/promises';
+import { logger } from '../../shared/utils/logger';
 
 export class FileParserService {
   /**
@@ -25,7 +26,7 @@ export class FileParserService {
           throw new Error(`Unsupported file type: ${mimeType}`);
       }
     } catch (error) {
-      console.error('Error parsing file:', error);
+      logger.error('Error parsing file:', { error });
 
       if (error instanceof Error) {
         if (error.message.includes('corrupted') ||
@@ -59,10 +60,10 @@ export class FileParserService {
       }
 
       if (data.text && data.text.trim().length > 50) {
-        console.log(`✅ PDF parsed with pdf-parse: ${data.text.length} characters, ${data.numpages} pages`);
+        logger.info(`✅ PDF parsed with pdf-parse: ${data.text.length} characters, ${data.numpages} pages`);
         return data.text;
       } else {
-        console.warn('⚠️ pdf-parse extracted very little text, trying alternative...');
+        logger.warn('⚠️ pdf-parse extracted very little text, trying alternative...');
       }
     } catch (firstError) {
       const errorMsg = firstError instanceof Error ? firstError.message : String(firstError);
@@ -72,7 +73,7 @@ export class FileParserService {
         throw firstError;
       }
 
-      console.warn('pdf-parse failed:', errorMsg);
+      logger.warn('pdf-parse failed:', { error: errorMsg });
     }
 
     // Strategy 2: Try pdf.js-extract (better for complex PDFs)
@@ -99,10 +100,10 @@ export class FileParserService {
       }
 
       if (text.trim().length > 50) {
-        console.log(`✅ PDF parsed with pdf.js-extract: ${text.length} characters, ${data.pages.length} pages`);
+        logger.info(`✅ PDF parsed with pdf.js-extract: ${text.length} characters, ${data.pages.length} pages`);
         return text;
       } else {
-        console.warn('⚠️ pdf.js-extract extracted very little text');
+        logger.warn('⚠️ pdf.js-extract extracted very little text');
       }
     } catch (secondError) {
       const errorMsg = secondError instanceof Error ? secondError.message : String(secondError);
@@ -112,7 +113,7 @@ export class FileParserService {
         throw secondError;
       }
 
-      console.error('pdf.js-extract failed:', errorMsg);
+      logger.error('pdf.js-extract failed:', { error: errorMsg });
     }
 
     // All strategies failed

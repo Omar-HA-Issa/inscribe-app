@@ -1,6 +1,10 @@
 // src/app/routes/auth.routes.ts
 import { Router } from "express";
 import { anonServerClient, clientFromRequest, extractBearerToken } from "../../core/clients/supabaseClient";
+import { validateString } from "../middleware/validation";
+import { BadRequestError, UnauthorizedError, InternalServerError } from "../../shared/errors";
+import { rateLimitMiddleware } from "../middleware/rateLimiter";
+import { logger } from "../../shared/utils/logger";
 
 const router = Router();
 
@@ -9,16 +13,24 @@ const router = Router();
  * body: { email, password }
  * returns: { success, user, session: { access_token, refresh_token, expires_in } }
  */
-router.post("/login", async (req, res) => {
+router.post("/login", rateLimitMiddleware.auth, async (req, res, next) => {
   try {
     const { email, password } = req.body ?? {};
     if (!email || !password) {
-      return res.status(400).json({ success: false, error: "Email and password are required." });
+      throw new BadRequestError("Email and password are required.");
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new BadRequestError("Invalid email format.");
     }
 
     const sb = anonServerClient();
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) return res.status(400).json({ success: false, error: error.message });
+    if (error) {
+      throw new BadRequestError(error.message || "Login failed");
+    }
 
     return res.json({
       success: true,
@@ -30,8 +42,7 @@ router.post("/login", async (req, res) => {
       }
     });
   } catch (e: any) {
-    console.error("[auth] login error:", e);
-    return res.status(500).json({ success: false, error: e.message ?? "Internal error" });
+    next(e);
   }
 });
 
@@ -40,16 +51,29 @@ router.post("/login", async (req, res) => {
  * body: { email, password }
  * returns: { success, user, session: { access_token, refresh_token, expires_in }, needs_email_confirm? }
  */
-router.post("/signup", async (req, res) => {
+router.post("/signup", rateLimitMiddleware.auth, async (req, res, next) => {
   try {
     const { email, password } = req.body ?? {};
     if (!email || !password) {
-      return res.status(400).json({ success: false, error: "Email and password are required." });
+      throw new BadRequestError("Email and password are required.");
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new BadRequestError("Invalid email format.");
+    }
+
+    // Validate password strength
+    if (password.length < 6) {
+      throw new BadRequestError("Password must be at least 6 characters long.");
     }
 
     const sb = anonServerClient();
     const { data, error } = await sb.auth.signUp({ email, password });
-    if (error) return res.status(400).json({ success: false, error: error.message });
+    if (error) {
+      throw new BadRequestError(error.message || "Signup failed");
+    }
 
     return res.json({
       success: true,
@@ -62,8 +86,7 @@ router.post("/signup", async (req, res) => {
       needs_email_confirm: !data.session,
     });
   } catch (e: any) {
-    console.error("[auth] signup error:", e);
-    return res.status(500).json({ success: false, error: e.message ?? "Internal error" });
+    next(e);
   }
 });
 
@@ -71,14 +94,13 @@ router.post("/signup", async (req, res) => {
  * POST /api/logout
  * (client-side: just delete your stored token; this is optional)
  */
-router.post("/logout", async (_req, res) => {
+router.post("/logout", rateLimitMiddleware.auth, async (_req, res, next) => {
   try {
     const sb = anonServerClient();
     await sb.auth.signOut();
     return res.json({ success: true });
   } catch (e: any) {
-    console.error("[auth] logout error:", e);
-    return res.status(500).json({ success: false, error: e.message ?? "Internal error" });
+    next(e);
   }
 });
 
@@ -87,21 +109,22 @@ router.post("/logout", async (_req, res) => {
  * Requires: Authorization: Bearer <access_token>
  * returns: { authenticated: boolean, user? }
  */
-router.get("/me", async (req, res) => {
+router.get("/me", async (req, res, next) => {
   try {
     // Ensure a token exists
     const bearer = extractBearerToken(req);
-    if (!bearer) return res.status(401).json({ authenticated: false });
+    if (!bearer) {
+      throw new UnauthorizedError("Missing authentication token");
+    }
 
     const sb = clientFromRequest(req);
     const { data, error } = await sb.auth.getUser();
     if (error || !data?.user) {
-      return res.status(401).json({ authenticated: false });
+      throw new UnauthorizedError("Invalid or expired token");
     }
     return res.json({ authenticated: true, user: data.user });
   } catch (e: any) {
-    console.error("[auth] me error:", e);
-    return res.status(500).json({ authenticated: false, error: e.message ?? "Internal error" });
+    next(e);
   }
 });
 

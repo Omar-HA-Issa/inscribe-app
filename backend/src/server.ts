@@ -1,12 +1,16 @@
-import express from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import { logger } from './shared/utils/logger';
+import { CORS_CONFIG } from './shared/constants/config';
+import { errorHandler } from './app/middleware/errorHandler';
+import { responseFormatterMiddleware } from './app/middleware/responseFormatter';
 
-import uploadRoutes from "./app/routes/upload.routes";
-import searchRoutes from "./app/routes/search.routes";
-import chatRoutes from "./app/routes/chat.routes";
-import authRoutes from "./app/routes/auth.routes";
-import documentsRoutes from "./app/routes/documents.routes";
+import uploadRoutes from './app/routes/upload.routes';
+import searchRoutes from './app/routes/search.routes';
+import chatRoutes from './app/routes/chat.routes';
+import authRoutes from './app/routes/auth.routes';
+import documentsRoutes from './app/routes/documents.routes';
 import insightsRoutes from './app/routes/insights.routes';
 import contradictionsRoutes from './app/routes/validation.routes';
 
@@ -17,17 +21,18 @@ app.use(cookieParser());
 // Middleware
 app.use(
   cors({
-    origin: "http://localhost:5173",
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    exposedHeaders: ["set-cookie"],
+    origin: CORS_CONFIG.ORIGIN,
+    credentials: CORS_CONFIG.CREDENTIALS,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['set-cookie'],
     maxAge: 86400,
   })
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(responseFormatterMiddleware);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -83,22 +88,7 @@ app.use((req, res) => {
   });
 });
 
-// Error handler
-app.use(
-  (
-    err: any,
-    req: express.Request,
-    res: express.Response,
-    _next: express.NextFunction
-  ) => {
-    console.error("Server error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error:
-        process.env.NODE_ENV === "development" ? err.message : undefined,
-    });
-  }
-);
+// Error handler (must be last)
+app.use(errorHandler);
 
 export default app;

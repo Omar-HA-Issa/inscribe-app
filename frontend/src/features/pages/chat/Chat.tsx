@@ -3,7 +3,6 @@ import {AnimatePresence, motion} from "framer-motion";
 import {Textarea} from "@/shared/ui/textarea.tsx";
 import {AlertCircle, Bot, Copy, Send, Sparkles, User} from "lucide-react";
 import {chatApi} from "@/features/pages/chat/api/chatApi.ts";
-import {useToast} from "@/shared/hooks/use-toast.ts";
 import ReactMarkdown from "react-markdown";
 
 interface Message {
@@ -37,7 +36,6 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs = [] }) => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -93,15 +91,6 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs = [] }) => {
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-
-      const uniqueDocs = response?.sources?.length ?? 0;
-      const totalChunks = response?.chunksUsed ?? 0;
-      if (uniqueDocs > 0) {
-        toast({
-          title: "✓ Answer found",
-          description: `${uniqueDocs} document${uniqueDocs > 1 ? "s" : ""} • ${totalChunks} chunk${totalChunks !== 1 ? "s" : ""}`,
-        });
-      }
     } catch (error) {
       console.error("❌ Chat error:", error);
 
@@ -114,22 +103,13 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs = [] }) => {
       };
 
       setMessages((prev) => [...prev, errorMessage]);
-
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to get response",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
   }
 
   function copyToClipboard(text: string) {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => toast({ title: "Copied to clipboard" }))
-      .catch(() => toast({ title: "Failed to copy", variant: "destructive" }));
+    navigator.clipboard.writeText(text);
   }
 
   return (

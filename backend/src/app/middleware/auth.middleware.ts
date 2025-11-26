@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { jwtVerify } from "jose";
 import { userClient } from "../../core/clients/supabaseClient";
+import { logger } from "../../shared/utils/logger";
 
 const RAW_SECRET = process.env.SUPABASE_JWT_SECRET || "";
 if (!RAW_SECRET) throw new Error("SUPABASE_JWT_SECRET is required in .env");
@@ -56,7 +57,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     return next();
   } catch (err: any) {
-    console.error("[auth] token verification failed:", err?.message || err);
+    logger.error("[auth] token verification failed:", { error: err?.message || err });
     return res.status(401).json({ success: false, error: "Invalid or expired token" });
   }
 }

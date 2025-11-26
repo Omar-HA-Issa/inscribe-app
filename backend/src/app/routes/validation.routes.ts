@@ -1,5 +1,10 @@
 import { Router, Request, Response } from 'express';
 import * as ContradictionsService from '../../core/services/validation.service';
+import { validateUUID } from '../middleware/validation';
+import { UnauthorizedError, BadRequestError, InternalServerError } from '../../shared/errors';
+import { rateLimitMiddleware } from '../middleware/rateLimiter';
+import { requireAuth } from '../middleware/auth.middleware';
+import { logger } from '../../shared/utils/logger';
 
 const router = Router();
 
@@ -7,31 +12,32 @@ const router = Router();
  * POST /api/contradictions/analyze/within
  * Detect contradictions within a single document
  */
-router.post('/analyze/within', async (req: Request, res: Response) => {
+router.post('/analyze/within', requireAuth, rateLimitMiddleware.default, async (req: Request, res: Response, next) => {
   try {
     const { documentId } = req.body;
     const userId = (req as any).authUserId;
 
     if (!documentId) {
-      return res.status(400).json({ error: 'Document ID is required' });
+      throw new BadRequestError('Document ID is required');
     }
+
+    validateUUID(documentId, 'documentId');
 
     if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
+      throw new UnauthorizedError('User not authenticated');
     }
 
-    console.log(`[Contradictions] Analyzing document ${documentId} for user ${userId}`);
+    logger.info(`Analyzing document ${documentId} for contradictions`);
 
     const result = await ContradictionsService.detectWithinDocument(documentId, userId);
 
-    console.log(
-      `[Contradictions] Found ${result.contradictions.length} contradictions and ${result.gaps.length} gaps`
+    logger.info(
+      `Found ${result.contradictions.length} contradictions and ${result.gaps.length} gaps`
     );
 
     res.json(result);
   } catch (error: any) {
-    console.error('[Contradictions] Error analyzing document:', error);
-    res.status(500).json({ error: error.message || 'Failed to analyze document' });
+    next(error);
   }
 });
 
@@ -39,27 +45,32 @@ router.post('/analyze/within', async (req: Request, res: Response) => {
  * POST /api/contradictions/analyze/across
  * Detect contradictions between documents
  */
-router.post('/analyze/across', async (req: Request, res: Response) => {
+router.post('/analyze/across', requireAuth, rateLimitMiddleware.default, async (req: Request, res: Response, next) => {
   try {
     const { primaryDocumentId, compareDocumentIds } = req.body;
     const userId = (req as any).authUserId;
 
     if (!primaryDocumentId || !compareDocumentIds || !Array.isArray(compareDocumentIds)) {
-      return res.status(400).json({
-        error: 'Primary document ID and array of comparison document IDs are required',
-      });
+      throw new BadRequestError('Primary document ID and array of comparison document IDs are required');
     }
+
+    validateUUID(primaryDocumentId, 'primaryDocumentId');
 
     if (compareDocumentIds.length === 0) {
-      return res.status(400).json({ error: 'At least one comparison document is required' });
+      throw new BadRequestError('At least one comparison document is required');
     }
+
+    // Validate all comparison document IDs
+    compareDocumentIds.forEach((docId, index) => {
+      validateUUID(docId, `compareDocumentIds[${index}]`);
+    });
 
     if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
+      throw new UnauthorizedError('User not authenticated');
     }
 
-    console.log(
-      `[Contradictions] Comparing document ${primaryDocumentId} with ${compareDocumentIds.length} other documents`
+    logger.info(
+      `Comparing document ${primaryDocumentId} with ${compareDocumentIds.length} other documents`
     );
 
     const result = await ContradictionsService.detectAcrossDocuments(
@@ -68,14 +79,13 @@ router.post('/analyze/across', async (req: Request, res: Response) => {
       userId
     );
 
-    console.log(
-      `[Contradictions] Found ${result.contradictions.length} contradictions and ${result.gaps.length} gaps across documents`
+    logger.info(
+      `Found ${result.contradictions.length} contradictions and ${result.gaps.length} gaps across documents`
     );
 
     res.json(result);
   } catch (error: any) {
-    console.error('[Contradictions] Error comparing documents:', error);
-    res.status(500).json({ error: error.message || 'Failed to compare documents' });
+    next(error);
   }
 });
 

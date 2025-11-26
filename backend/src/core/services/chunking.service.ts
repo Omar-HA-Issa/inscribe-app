@@ -1,5 +1,6 @@
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { encoding_for_model, Tiktoken } from 'tiktoken';
+import { logger } from '../../shared/utils/logger';
 
 export interface TextChunk {
   content: string;
@@ -33,12 +34,12 @@ export class ChunkingService {
         return [];
       }
 
-      console.log('✂️ Starting document chunking...');
-      console.log('   Raw length:', text.length, 'characters');
+      logger.info('✂️ Starting document chunking...');
+      logger.info(`   Raw length: ${text.length} characters`);
 
       const roughChunks = await this.splitter.splitText(text);
 
-      console.log('   Rough chunks created:', roughChunks.length);
+      logger.info(`   Rough chunks created: ${roughChunks.length}`);
 
       const chunks: TextChunk[] = [];
       let index = 0;
@@ -56,7 +57,7 @@ export class ChunkingService {
       }
 
       if (chunks.length === 0) {
-        console.warn('⚠️ No chunks produced from text');
+        logger.warn('⚠️ No chunks produced from text');
         return [];
       }
 
@@ -68,9 +69,9 @@ export class ChunkingService {
       const maxTokens = Math.max(...chunks.map((c) => c.tokenCount));
       const minTokens = Math.min(...chunks.map((c) => c.tokenCount));
 
-      console.log(`📈 Chunk statistics:`);
-      console.log(`   Average: ${Math.round(avgChars)} chars, ${Math.round(avgTokens)} tokens`);
-      console.log(`   Range: ${minTokens} - ${maxTokens} tokens`);
+      logger.info(`📈 Chunk statistics:`);
+      logger.info(`   Average: ${Math.round(avgChars)} chars, ${Math.round(avgTokens)} tokens`);
+      logger.info(`   Range: ${minTokens} - ${maxTokens} tokens`);
 
       return chunks;
     } finally {

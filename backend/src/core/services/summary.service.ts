@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { adminClient } from "../../core/clients/supabaseClient";
+import { logger } from "../../shared/utils/logger";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -35,7 +36,7 @@ export async function generateDocumentSummary(
       .single();
 
     if (docError || !document) {
-      console.error("❌ Document query error:", docError);
+      logger.error("❌ Document query error:", { error: docError });
       throw new Error("Document not found or access denied");
     }
 
@@ -44,7 +45,7 @@ export async function generateDocumentSummary(
       try {
         return JSON.parse(document.summary);
       } catch (err) {
-        console.warn("⚠️ Failed to parse existing summary JSON, regenerating:", err);
+        logger.warn("⚠️ Failed to parse existing summary JSON, regenerating:", { error: err });
       }
     }
 
@@ -55,18 +56,18 @@ export async function generateDocumentSummary(
       .eq("document_id", documentId)
       .order("chunk_index", { ascending: true });
 
-    console.log(`📊 Chunks query result for ${documentId}:`, {
+    logger.info(`📊 Chunks query result for ${documentId}:`, {
       error: chunksError,
       chunksFound: chunks?.length || 0,
     });
 
     if (chunksError) {
-      console.error("❌ Chunks query error:", chunksError);
+      logger.error("❌ Chunks query error:", { error: chunksError });
       throw new Error(`Database error: ${chunksError.message}`);
     }
 
     if (!chunks || chunks.length === 0) {
-      console.error("❌ No chunks found for document:", documentId);
+      logger.error("❌ No chunks found for document:", { documentId });
       throw new Error("No document content found. Document may still be processing.");
     }
 
@@ -148,13 +149,13 @@ Respond in JSON format:
       .eq("id", documentId);
 
     if (updateError) {
-      console.error("Failed to save summary:", updateError);
+      logger.error("Failed to save summary:", { error: updateError });
       // Don't throw - we still have the summary to return
     }
 
     return result;
   } catch (error) {
-    console.error("Error generating summary:", error);
+    logger.error("Error generating summary:", { error });
     throw error;
   }
 }
@@ -187,7 +188,7 @@ export async function getSummary(
     // Generate new summary
     return await generateDocumentSummary(documentId, userId);
   } catch (error) {
-    console.error("Error getting summary:", error);
+    logger.error("Error getting summary:", { error });
     throw error;
   }
 }

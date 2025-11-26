@@ -1,31 +1,63 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+/**
+ * Authentication and API Client
+ * SOLID Principles: Single Responsibility - Auth logic and API calls separated by concern
+ */
+
+import { API_CONFIG, STORAGE_KEYS, isDevelopment } from '@/shared/constants/config';
+import { ApiError, extractErrorMessage, logError } from '@/shared/lib/errorHandler';
 
 // =====================
 // Token Management
 // =====================
 
+/**
+ * Retrieves auth token from storage with error handling
+ */
 export function getAuthToken(): string | null {
   try {
-    return localStorage.getItem("access_token");
+    return localStorage.getItem(STORAGE_KEYS.accessToken);
   } catch {
+    logError('getAuthToken', 'Failed to retrieve token from storage', isDevelopment);
     return null;
   }
 }
 
+/**
+ * Sets both access and refresh tokens in storage
+ */
 export function setAuthTokens(accessToken: string, refreshToken: string): void {
-  localStorage.setItem("access_token", accessToken);
-  localStorage.setItem("refresh_token", refreshToken);
+  try {
+    localStorage.setItem(STORAGE_KEYS.accessToken, accessToken);
+    localStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
+  } catch (error) {
+    logError('setAuthTokens', 'Failed to store tokens', isDevelopment);
+    throw new Error('Failed to save authentication tokens');
+  }
 }
 
+/**
+ * Clears all authentication tokens from storage
+ */
 export function clearAuthTokens(): void {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
+  try {
+    localStorage.removeItem(STORAGE_KEYS.accessToken);
+    localStorage.removeItem(STORAGE_KEYS.refreshToken);
+  } catch (error) {
+    logError('clearAuthTokens', 'Failed to clear tokens', isDevelopment);
+  }
 }
 
+/**
+ * Checks if user is authenticated
+ */
 export function isAuthenticated(): boolean {
-  return !!getAuthToken();
+  const token = getAuthToken();
+  return !!token && token.length > 0;
 }
 
+/**
+ * Builds authorization headers
+ */
 function getAuthHeaders(): HeadersInit {
   const token = getAuthToken();
   const headers: HeadersInit = {
@@ -43,241 +75,387 @@ function getAuthHeaders(): HeadersInit {
 // Auth Response Types
 // =====================
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  [key: string]: unknown;
+}
+
+export interface AuthSession {
+  access_token: string;
+  refresh_token: string;
+}
+
 export interface AuthResponse {
-  user?: {
-    id: string;
-    email: string;
-    [key: string]: any;
-  };
-  session?: {
-    access_token: string;
-    refresh_token: string;
-  };
+  user?: AuthUser;
+  session?: AuthSession;
   needs_email_confirm?: boolean;
   error?: string;
+  message?: string;
+}
+
+export interface PasswordResetResponse {
+  success: boolean;
+  message: string;
 }
 
 // =====================
 // Authentication APIs
 // =====================
 
-/** POST /api/signup - Register new user */
+/**
+ * Registers a new user
+ * POST /api/signup
+ */
 export async function signUp(email: string, password: string): Promise<AuthResponse> {
-  const res = await fetch(`${API_URL}/api/signup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  try {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-  if (!res.ok) {
-    let msg = "Signup failed";
+    let data: AuthResponse;
     try {
-      const j = await res.json();
-      msg = j.error || j.message || msg;
-    } catch (_) {}
-    throw new Error(msg);
+      data = await response.json();
+    } catch {
+      throw new ApiError(response.status, 'Invalid server response');
+    }
+
+    if (!response.ok) {
+      const message = extractErrorMessage(data);
+      throw new ApiError(response.status, message || 'Signup failed');
+    }
+
+    // Store tokens if provided
+    if (data.session?.access_token && data.session?.refresh_token) {
+      setAuthTokens(data.session.access_token, data.session.refresh_token);
+    }
+
+    return data;
+  } catch (error) {
+    logError('signUp', error, isDevelopment);
+    throw error;
   }
-
-  const data = await res.json();
-
-  if (data.session) {
-    setAuthTokens(data.session.access_token, data.session.refresh_token);
-  }
-
-  return data;
 }
 
-/** POST /api/login - Sign in existing user */
+/**
+ * Signs in an existing user
+ * POST /api/login
+ */
 export async function signIn(email: string, password: string): Promise<AuthResponse> {
-  const res = await fetch(`${API_URL}/api/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  try {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-  if (!res.ok) {
-    let msg = "Login failed";
+    let data: AuthResponse;
     try {
-      const j = await res.json();
-      msg = j.error || j.message || msg;
-    } catch (_) {}
-    throw new Error(msg);
+      data = await response.json();
+    } catch {
+      throw new ApiError(response.status, 'Invalid server response');
+    }
+
+    if (!response.ok) {
+      const message = extractErrorMessage(data);
+      throw new ApiError(response.status, message || 'Login failed');
+    }
+
+    // Store tokens if provided
+    if (data.session?.access_token && data.session?.refresh_token) {
+      setAuthTokens(data.session.access_token, data.session.refresh_token);
+    }
+
+    return data;
+  } catch (error) {
+    logError('signIn', error, isDevelopment);
+    throw error;
   }
-
-  const data = await res.json();
-
-  if (data.session) {
-    setAuthTokens(data.session.access_token, data.session.refresh_token);
-  }
-
-  return data;
 }
 
-/** POST /api/logout - Sign out current user */
+/**
+ * Signs out the current user
+ * POST /api/logout
+ */
 export async function signOut(): Promise<void> {
-  await fetch(`${API_URL}/api/logout`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-  });
-
-  clearAuthTokens();
+  try {
+    await fetch(`${API_CONFIG.baseUrl}/api/logout`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    }).catch(() => {
+      // Ignore logout errors - always clear local tokens
+    });
+  } finally {
+    clearAuthTokens();
+  }
 }
 
-/** GET /api/me - Get current user info */
+/**
+ * Gets current user information
+ * GET /api/me
+ */
 export async function getCurrentUser(): Promise<AuthResponse> {
-  const res = await fetch(`${API_URL}/api/me`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
+  try {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/me`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
 
-  if (!res.ok) {
-    throw new Error("Not authenticated");
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearAuthTokens();
+        throw new ApiError(401, 'Session expired. Please login again.');
+      }
+      throw new ApiError(response.status, 'Failed to get user info');
+    }
+
+    return response.json() as Promise<AuthResponse>;
+  } catch (error) {
+    logError('getCurrentUser', error, isDevelopment);
+    throw error;
   }
-
-  return res.json();
 }
 
-/** POST /api/forgot-password - Request password reset */
-export async function resetPasswordRequest(email: string): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${API_URL}/api/forgot-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
+/**
+ * Requests a password reset email
+ * POST /api/forgot-password
+ */
+export async function resetPasswordRequest(email: string): Promise<PasswordResetResponse> {
+  try {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
 
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Failed to send reset email");
+    let data: any;
+    try {
+      data = await response.json();
+    } catch {
+      throw new ApiError(response.status, 'Invalid server response');
+    }
+
+    if (!response.ok) {
+      const message = extractErrorMessage(data);
+      throw new ApiError(response.status, message || 'Failed to send reset email');
+    }
+
+    return data;
+  } catch (error) {
+    logError('resetPasswordRequest', error, isDevelopment);
+    throw error;
   }
-
-  return res.json();
 }
 
-/** POST /api/reset-password - Reset password with token */
-export async function resetPassword(accessToken: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${API_URL}/api/reset-password`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({ password: newPassword }),
-  });
+/**
+ * Resets password with a token
+ * POST /api/reset-password
+ */
+export async function resetPassword(accessToken: string, newPassword: string): Promise<PasswordResetResponse> {
+  try {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/reset-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ password: newPassword }),
+    });
 
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Failed to reset password");
+    let data: any;
+    try {
+      data = await response.json();
+    } catch {
+      throw new ApiError(response.status, 'Invalid server response');
+    }
+
+    if (!response.ok) {
+      const message = extractErrorMessage(data);
+      throw new ApiError(response.status, message || 'Failed to reset password');
+    }
+
+    return data;
+  } catch (error) {
+    logError('resetPassword', error, isDevelopment);
+    throw error;
   }
+}
 
-  return res.json();
+// =====================
+// Document Response Types
+// =====================
+
+export interface UserDocumentsResponse {
+  documents: Array<{
+    id: string;
+    title: string;
+    file_name: string;
+    file_type: string;
+    created_at: string;
+    file_size: number;
+  }>;
+}
+
+export interface ChatQuery {
+  question: string;
+  topK?: number;
+}
+
+export interface SearchQuery {
+  query: string;
+  topK?: number;
+  minSimilarity?: number;
 }
 
 // =====================
 // Document APIs (Protected)
 // =====================
 
-/** GET /api/documents - Fetch user's documents */
-export async function fetchUserDocuments() {
-  const res = await fetch(`${API_URL}/api/documents`, {
-    headers: getAuthHeaders(),
-  });
+/**
+ * Fetches user's documents
+ * GET /api/documents
+ */
+export async function fetchUserDocuments(): Promise<UserDocumentsResponse> {
+  try {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/documents`, {
+      headers: getAuthHeaders(),
+    });
 
-  if (!res.ok) {
-    if (res.status === 401) {
-      await signOut();
-      throw new Error("Session expired. Please login again.");
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearAuthTokens();
+        throw new ApiError(401, 'Session expired. Please login again.');
+      }
+      throw new ApiError(response.status, 'Failed to fetch documents');
     }
-    throw new Error("Failed to fetch documents");
-  }
 
-  return res.json();
+    return response.json() as Promise<UserDocumentsResponse>;
+  } catch (error) {
+    logError('fetchUserDocuments', error, isDevelopment);
+    throw error;
+  }
 }
 
-/** POST /api/upload - Upload a document */
-export async function uploadDocument(file: File) {
-  const formData = new FormData();
-  formData.append("file", file);
+/**
+ * Uploads a document
+ * POST /api/upload
+ */
+export async function uploadDocument(file: File): Promise<any> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
 
-  const token = getAuthToken();
-  const headers: HeadersInit = {};
+    const token = getAuthToken();
+    if (!token) {
+      throw new ApiError(401, 'Not authenticated. Please login again.');
+    }
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    const headers: HeadersInit = {
+      'Authorization': `Bearer ${token}`,
+    };
+
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/upload`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    let errorPayload: any = null;
+    if (!response.ok) {
+      try {
+        errorPayload = await response.json();
+      } catch {
+        // Response is not JSON
+      }
+
+      // Handle specific error cases
+      if (response.status === 409 && errorPayload?.code === "DUPLICATE_DOCUMENT") {
+        throw new ApiError(
+          409,
+          errorPayload.message || "This document already exists in your library."
+        );
+      }
+
+      if (response.status === 401) {
+        clearAuthTokens();
+        throw new ApiError(401, 'Not authenticated. Please login again.');
+      }
+
+      const message = extractErrorMessage(errorPayload) || "Upload failed";
+      throw new ApiError(response.status, message);
+    }
+
+    return response.json();
+  } catch (error) {
+    logError('uploadDocument', error, isDevelopment);
+    throw error;
   }
-
-  const res = await fetch(`${API_URL}/api/upload`, {
-    method: "POST",
-    headers: headers, // Let browser set Content-Type for FormData
-    body: formData,
-  });
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      throw new Error("Not authenticated");
-    }
-
-    let errorPayload: any = {};
-    try {
-      errorPayload = await res.json();
-    } catch {
-
-    }
-    if (res.status === 409 && errorPayload?.code === "DUPLICATE_DOCUMENT") {
-      throw new Error(
-        errorPayload.message || "This document already exists in your library."
-      );
-    }
-
-    throw new Error(
-      errorPayload.error || errorPayload.message || "Upload failed"
-    );
-  }
-
-  return res.json();
 }
 
+/**
+ * Sends a chat query
+ * POST /api/chat
+ */
+export async function sendChatQuery(query: string, limit: number = 5): Promise<any> {
+  try {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/chat`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ question: query, topK: limit }),
+    });
 
-/** POST /api/chat - Send a chat query */
-export async function sendChatQuery(query: string, limit: number = 5) {
-  const res = await fetch(`${API_URL}/api/chat`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ question: query, topK: limit }),
-  });
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      await signOut();
-      throw new Error("Session expired. Please login again.");
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearAuthTokens();
+        throw new ApiError(401, 'Session expired. Please login again.');
+      }
+      throw new ApiError(response.status, 'Chat query failed');
     }
-    throw new Error("Chat query failed");
-  }
 
-  return res.json();
+    return response.json();
+  } catch (error) {
+    logError('sendChatQuery', error, isDevelopment);
+    throw error;
+  }
 }
 
-/** POST /api/search - Search documents */
-export async function searchDocuments(query: string, topK: number = 8, minSimilarity: number = 0.2) {
-  const res = await fetch(`${API_URL}/api/search`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ query, topK, minSimilarity }),
-  });
+/**
+ * Searches documents
+ * POST /api/search
+ */
+export async function searchDocuments(
+  query: string,
+  topK: number = 8,
+  minSimilarity: number = 0.2
+): Promise<any> {
+  try {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/search`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ query, topK, minSimilarity }),
+    });
 
-  if (!res.ok) {
-    if (res.status === 401) {
-      await signOut();
-      throw new Error("Session expired. Please login again.");
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearAuthTokens();
+        throw new ApiError(401, 'Session expired. Please login again.');
+      }
+      throw new ApiError(response.status, 'Search failed');
     }
-    throw new Error("Search failed");
-  }
 
-  return res.json();
+    return response.json();
+  } catch (error) {
+    logError('searchDocuments', error, isDevelopment);
+    throw error;
+  }
 }
 
 // =====================
-// Generic API Client (for other endpoints)
+// Generic API Client (deprecated - use api.ts instead)
 // =====================
+// NOTE: This is kept for backward compatibility. New code should import from api.ts
 
 interface RequestOptions extends RequestInit {
   body?: any;
@@ -309,7 +487,7 @@ class ApiClient {
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
+          throw new ApiError(response.status, `Request failed with status ${response.status}`);
         }
         return {} as T;
       }
@@ -318,14 +496,14 @@ class ApiClient {
 
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error('Not authenticated');
+          throw new ApiError(401, 'Session expired. Please login again.');
         }
-        throw new Error(data.message || `Request failed with status ${response.status}`);
+        throw new ApiError(response.status, data.message || `Request failed with status ${response.status}`);
       }
 
       return data;
     } catch (error) {
-      console.error('API request failed:', error);
+      logError('ApiClient.request', error, isDevelopment);
       throw error;
     }
   }
@@ -353,5 +531,4 @@ class ApiClient {
   }
 }
 
-export const api = new ApiClient(API_URL);
-export { API_URL };
+export const api = new ApiClient(API_CONFIG.baseUrl);
