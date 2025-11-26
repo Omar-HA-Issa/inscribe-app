@@ -2,15 +2,21 @@ import {LogOut, Settings} from "lucide-react";
 import {useEffect, useRef, useState} from "react";
 import Logo from "@/shared/assets/images/logo.png";
 
+export interface Tab {
+  id: string;
+  label: string;
+}
+
 interface HeaderProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   fileName?: string;
   onChangeDocument: () => void;
   onLogout?: () => void;
+  tabs?: Tab[];
 }
 
-const tabs = [
+const defaultTabs: Tab[] = [
   { id: "summary", label: "Summary" },
   { id: "insights", label: "Insights" },
   { id: "contradictions", label: "Contradictions" },
@@ -25,6 +31,7 @@ export const Header = ({
   fileName,
   onChangeDocument,
   onLogout,
+  tabs = defaultTabs,
 }: HeaderProps) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
