@@ -92,6 +92,7 @@ export const Validator = () => {
   const [expandedContradictions, setExpandedContradictions] = useState<Set<number>>(new Set());
   const [expandedGaps, setExpandedGaps] = useState<Set<number>>(new Set());
   const [expandedAgreements, setExpandedAgreements] = useState<Set<number>>(new Set());
+  const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -486,7 +487,7 @@ export const Validator = () => {
             </div>
           ) : (
             <>
-                  {/* Risk Overview */}
+                  {/* Executive Summary */}
           {result.riskAssessment && (
             <div className="bg-card rounded-xl p-6 shadow-card">
               <div className="flex items-start justify-between mb-4">
@@ -497,72 +498,54 @@ export const Validator = () => {
                     'text-green-500'
                   }`} />
                   <div>
-                    <h2 className="text-xl font-semibold text-foreground">Overall Assessment</h2>
+                    <h2 className="text-xl font-semibold text-foreground">Analysis Summary</h2>
                     <p className="text-sm text-muted-foreground mt-1">
                       {currentDocumentName}
-                      {result.analysisMetadata.documentsAnalyzed > 1 && ` + ${result.analysisMetadata.documentsAnalyzed - 1} other${result.analysisMetadata.documentsAnalyzed > 2 ? 's' : ''}`} • {result.analysisMetadata.totalChunksReviewed} sections
+                      {result.analysisMetadata.documentsAnalyzed > 1 && ` + ${result.analysisMetadata.documentsAnalyzed - 1} other${result.analysisMetadata.documentsAnalyzed > 2 ? 's' : ''}`} • {result.analysisMetadata.totalChunksReviewed} sections reviewed
                     </p>
                   </div>
                 </div>
-                <span className={`px-4 py-2 rounded-full text-sm font-medium ${getPriorityStyles(result.riskAssessment.overallRisk || 'medium')}`}>
+                <span className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${getPriorityStyles(result.riskAssessment.overallRisk || 'medium')}`}>
                   {getConsistencyLabel(result.riskAssessment.overallRisk || 'medium')}
                 </span>
               </div>
-              <p className="text-foreground">{result.riskAssessment.summary}</p>
+              <p className="text-foreground mb-4">{result.riskAssessment.summary}</p>
+
+              {/* Quick Stats */}
+              <div className={`grid gap-3 text-sm border-t border-border pt-4 ${analysisMode === 'across' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                <div>
+                  <span className="text-muted-foreground">Issues Found:</span>
+                  <p className="text-lg font-semibold text-foreground">{(result.contradictions?.length || 0) + (result.gaps?.length || 0)}</p>
+                </div>
+                {analysisMode === 'across' && (
+                  <div>
+                    <span className="text-muted-foreground">Agreements:</span>
+                    <p className="text-lg font-semibold text-foreground">{result.agreements?.length || 0}</p>
+                  </div>
+                )}
+                <div>
+                  <span className="text-muted-foreground">Action Items:</span>
+                  <p className="text-lg font-semibold text-foreground">{result.recommendations?.length || 0}</p>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-card rounded-xl p-6 shadow-card">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
-                <span className="text-sm text-muted-foreground">Contradictions</span>
-              </div>
-              <p className="text-3xl font-light text-foreground">{result.contradictions?.length || 0}</p>
-            </div>
 
-            <div className="bg-card rounded-xl p-6 shadow-card">
-              <div className="flex items-center gap-2 mb-2">
-                <Info className="w-5 h-5 text-yellow-500" />
-                <span className="text-sm text-muted-foreground">Information Gaps</span>
-              </div>
-              <p className="text-3xl font-light text-foreground">{result.gaps?.length || 0}</p>
-            </div>
-
-            <div className="bg-card rounded-xl p-6 shadow-card">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle2 className="w-5 h-5 text-green-500" />
-                <span className="text-sm text-muted-foreground">Agreements</span>
-              </div>
-              <p className="text-3xl font-light text-foreground">{result.agreements?.length || 0}</p>
-            </div>
-          </div>
-
-          {/* Critical Items */}
-          {result.riskAssessment && result.riskAssessment.criticalItems && result.riskAssessment.criticalItems.length > 0 && (
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <Target className="w-5 h-5 text-red-500" />
-                Priority Focus Areas
-              </h2>
-              <div className="space-y-3">
-                {result.riskAssessment.criticalItems.map((item, i) => (
-                  <div key={i} className="bg-card rounded-lg p-4 border-l-4 border-red-500 shadow-card">
-                    <p className="text-foreground">{item}</p>
-                  </div>
-                ))}
-              </div>
+          {/* Detailed Findings Section Header */}
+          {((result.contradictions?.length || 0) > 0 || (result.gaps?.length || 0) > 0 || (result.agreements?.length || 0) > 0) && (
+            <div className="pt-4 border-t border-border">
+              <h2 className="text-lg font-semibold text-foreground mb-6">Detailed Findings</h2>
             </div>
           )}
 
           {/* Contradictions */}
           {result.contradictions && result.contradictions.length > 0 && (
             <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-red-500" />
-                Contradictions Found ({result.contradictions.length})
-              </h2>
+                Contradictions ({result.contradictions.length})
+              </h3>
               <div className="space-y-4">
                 {result.contradictions.map((contradiction, i) => (
                   <div key={i} className="bg-card rounded-xl overflow-hidden shadow-card">
@@ -601,16 +584,14 @@ export const Validator = () => {
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-4">
-                          <div className="bg-muted/20 rounded p-4">
-                            <p className="text-xs text-muted-foreground mb-2">Claim Source</p>
-                            <p className="text-sm font-medium text-foreground">{contradiction.claimSource.documentName}</p>
-                            <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{contradiction.claimSource.excerpt}</p>
+                          <div className="bg-card rounded-lg p-4 border-l-4 border-blue-500">
+                            <p className="text-xs font-semibold text-blue-400 mb-2 uppercase">From: {contradiction.claimSource.documentName}</p>
+                            <p className="text-xs text-muted-foreground mt-2 line-clamp-3 italic">{contradiction.claimSource.excerpt}</p>
                           </div>
 
-                          <div className="bg-muted/20 rounded p-4">
-                            <p className="text-xs text-muted-foreground mb-2">Evidence Source</p>
-                            <p className="text-sm font-medium text-foreground">{contradiction.evidenceSource.documentName}</p>
-                            <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{contradiction.evidenceSource.excerpt}</p>
+                          <div className="bg-card rounded-lg p-4 border-l-4 border-amber-500">
+                            <p className="text-xs font-semibold text-amber-400 mb-2 uppercase">From: {contradiction.evidenceSource.documentName}</p>
+                            <p className="text-xs text-muted-foreground mt-2 line-clamp-3 italic">{contradiction.evidenceSource.excerpt}</p>
                           </div>
                         </div>
                       </div>
@@ -621,52 +602,121 @@ export const Validator = () => {
             </div>
           )}
 
-          {/* Information Gaps */}
-          {result.gaps && result.gaps.length > 0 && (
+          {/* Key Issues & Gaps - Unified Section */}
+          {(result.gaps?.length || 0) + (result.riskAssessment?.criticalItems?.length || 0) > 0 && (
             <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <Info className="w-5 h-5 text-yellow-500" />
-                Information Gaps ({result.gaps.length})
-              </h2>
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Target className="w-5 h-5 text-red-500" />
+                Key Issues & Gaps ({(result.gaps?.length || 0) + (result.riskAssessment?.criticalItems?.length || 0)})
+              </h3>
               <div className="space-y-4">
-                {result.gaps.map((gap, i) => (
-                  <div key={i} className="bg-card rounded-xl overflow-hidden shadow-card">
-                    <button
-                      onClick={() => setExpandedGaps(toggle(expandedGaps, i))}
-                      className="w-full p-6 text-left hover:bg-muted/10 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <p className="text-foreground font-medium mb-1">{gap.area}</p>
-                          <p className="text-muted-foreground text-sm">{gap.description}</p>
-                        </div>
-                        {expandedGaps.has(i) ? (
-                          <ChevronUp className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                        )}
-                      </div>
-                    </button>
+                {/* Combined and sorted issues */}
+                {(() => {
+                  const allIssues: Array<{
+                    id: string;
+                    title: string;
+                    description: string;
+                    severity: 'high' | 'medium' | 'low';
+                    type: 'gap' | 'critical';
+                    expectedInformation?: string;
+                  }> = [];
 
-                    {expandedGaps.has(i) && (
-                      <div className="px-6 pb-6 pt-4 border-t border-border">
-                        <h4 className="text-sm font-semibold text-foreground mb-2">Expected Information</h4>
-                        <p className="text-sm text-foreground">{gap.expectedInformation}</p>
+                  // Add critical items as high severity
+                  result.riskAssessment?.criticalItems?.forEach((item, i) => {
+                    allIssues.push({
+                      id: `critical-${i}`,
+                      title: item,
+                      description: 'This is a critical item that needs to be addressed to improve document quality and consistency.',
+                      severity: 'high',
+                      type: 'critical',
+                    });
+                  });
+
+                  // Add gaps
+                  result.gaps?.forEach((gap, i) => {
+                    allIssues.push({
+                      id: `gap-${i}`,
+                      title: gap.area,
+                      description: gap.description,
+                      severity: gap.severity,
+                      type: 'gap',
+                      expectedInformation: gap.expectedInformation,
+                    });
+                  });
+
+                  // Sort by severity: high -> medium -> low
+                  allIssues.sort((a, b) => {
+                    const severityOrder = { high: 0, medium: 1, low: 2 };
+                    return severityOrder[a.severity] - severityOrder[b.severity];
+                  });
+
+                  return allIssues.map((issue) => (
+                    <div key={issue.id} className="bg-card rounded-xl shadow-card overflow-hidden">
+                      <div className="p-6">
+                        <div className="flex items-start justify-between mb-3">
+                          <h3 className="text-lg font-semibold text-foreground">{issue.title}</h3>
+                          <span
+                            className="px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap"
+                            style={{
+                              backgroundColor: issue.severity === 'high' ? 'rgba(239, 68, 68, 0.2)' :
+                                              issue.severity === 'medium' ? 'rgba(234, 179, 8, 0.2)' :
+                                              'rgba(34, 197, 94, 0.2)',
+                              color: issue.severity === 'high' ? '#f87171' :
+                                     issue.severity === 'medium' ? '#facc15' :
+                                     '#86efac'
+                            }}
+                          >
+                            {issue.severity === 'high' ? 'BIG ISSUE' : issue.severity === 'medium' ? 'MEDIUM ISSUE' : 'MINOR ISSUE'}
+                          </span>
+                        </div>
+                        <p className="text-foreground">{issue.description}</p>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      {(issue.type === 'gap' && issue.expectedInformation) || issue.type === 'critical' ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              const newSet = new Set(expandedIssues);
+                              if (newSet.has(issue.id)) {
+                                newSet.delete(issue.id);
+                              } else {
+                                newSet.add(issue.id);
+                              }
+                              setExpandedIssues(newSet);
+                            }}
+                            className="w-full px-6 py-3 border-t border-border hover:bg-muted/10 transition-colors flex items-center justify-between"
+                          >
+                            <span className="text-sm font-semibold text-foreground">
+                              {issue.type === 'gap' ? 'Expected Information' : 'What\'s Needed'}
+                            </span>
+                            {expandedIssues.has(issue.id) ? (
+                              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </button>
+                          {expandedIssues.has(issue.id) && (
+                            <div className="px-6 pb-6">
+                              <p className="text-sm text-foreground">
+                                {issue.type === 'gap' ? issue.expectedInformation : issue.description}
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      ) : null}
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           )}
 
-          {/* Agreements */}
-          {result.agreements && result.agreements.length > 0 && (
+          {/* Agreements - Only show for cross-document analysis */}
+          {analysisMode === 'across' && result.agreements && result.agreements.length > 0 && (
             <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-green-500" />
                 Agreements ({result.agreements.length})
-              </h2>
+              </h3>
               <div className="space-y-4">
                 {result.agreements.map((agreement, i) => (
                   <div key={i} className="bg-card rounded-xl overflow-hidden shadow-card">
@@ -699,12 +749,12 @@ export const Validator = () => {
                         </div>
 
                         <div>
-                          <h4 className="text-sm font-semibold text-foreground mb-2">Sources</h4>
+                          <h4 className="text-sm font-semibold text-foreground mb-3">Supported By</h4>
                           <div className="space-y-2">
                             {(agreement.sources || []).map((source, j) => (
-                              <div key={j} className="bg-muted/20 rounded p-3">
-                                <p className="text-sm font-medium text-foreground">{source.documentName}</p>
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{source.excerpt}</p>
+                              <div key={j} className="bg-card rounded-lg p-4 border-l-4 border-green-500">
+                                <p className="text-xs font-semibold text-green-400 mb-2 uppercase">Document: {source.documentName}</p>
+                                <p className="text-xs text-muted-foreground italic line-clamp-3">{source.excerpt}</p>
                               </div>
                             ))}
                           </div>
@@ -717,12 +767,12 @@ export const Validator = () => {
             </div>
           )}
 
-          {/* Recommendations */}
+          {/* Action Plan */}
           {result.recommendations && result.recommendations.length > 0 && (
             <div className="space-y-4">
               <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
                 <Lightbulb className="w-5 h-5 text-purple-500" />
-                Recommendations ({result.recommendations.length})
+                Action Plan ({result.recommendations.length})
               </h2>
               <div className="space-y-4">
                 {result.recommendations
@@ -741,12 +791,12 @@ export const Validator = () => {
                     <p className="text-foreground mb-4">{rec.description}</p>
 
                     {rec.actionItems && rec.actionItems.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-foreground mb-2">Action Items</h4>
+                      <div>
+                        <h4 className="text-sm font-semibold text-foreground mb-2">Steps to Take</h4>
                         <ul className="space-y-2">
                           {rec.actionItems.map((item, j) => (
                             <li key={j} className="flex items-start gap-2 text-sm text-foreground">
-                              <span className="text-accent mt-1">•</span>
+                              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-muted/30 flex items-center justify-center text-xs font-medium">{j + 1}</span>
                               <span>{item}</span>
                             </li>
                           ))}
@@ -754,23 +804,6 @@ export const Validator = () => {
                       </div>
                     )}
 
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Next Steps */}
-          {result.riskAssessment && result.riskAssessment.nextSteps && result.riskAssessment.nextSteps.length > 0 && (
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-foreground">Next Steps</h2>
-              <div className="space-y-3">
-                {result.riskAssessment.nextSteps.map((step, i) => (
-                  <div key={i} className="flex gap-4 bg-card rounded-xl p-4 shadow-card">
-                    <span className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-sm">
-                      {i + 1}
-                    </span>
-                    <p className="text-foreground pt-1">{step}</p>
                   </div>
                 ))}
               </div>
