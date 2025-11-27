@@ -40,6 +40,7 @@ export interface Insight {
   id: string;
   insight_type: string;
   content: string;
+  impact?: string | null;
   confidence_score?: number;
   created_at: string;
 }

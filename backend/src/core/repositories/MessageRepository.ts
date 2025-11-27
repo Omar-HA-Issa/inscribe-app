@@ -38,6 +38,24 @@ export class MessageRepository implements IMessageRepository {
     return (data || []).map(msg => this.mapToDomain(msg));
   }
 
+  async findByDocumentId(documentId: string, limit = 50, offset = 0): Promise<Message[]> {
+    const { data, error } = await this.supabaseClient
+      .from('messages')
+      .select(`
+        *,
+        conversations!inner(document_id)
+      `)
+      .eq('conversations.document_id', documentId)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    return (data || []).map(msg => this.mapToDomain(msg));
+  }
+
   async create(data: CreateMessageDTO): Promise<Message> {
     const { data: createdMsg, error } = await this.supabaseClient
       .from('messages')

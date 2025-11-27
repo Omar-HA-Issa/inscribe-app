@@ -7,6 +7,8 @@ import { ValidationError, NotFoundError, UnauthorizedError, InternalServerError 
 import { rateLimitMiddleware } from "../middleware/rateLimiter";
 import { logger } from "../../shared/utils/logger";
 import { SEARCH_CONFIG } from "../../shared/constants/config";
+import { InsightRepository } from "../../core/repositories/InsightRepository";
+import { MessageRepository } from "../../core/repositories/MessageRepository";
 
 const router = Router();
 router.use(requireAuth);
@@ -92,7 +94,7 @@ router.get("/documents/:id/report", async (req, res, next) => {
       logger.warn('Failed to fetch summary for report:', { error: err });
     }
 
-    // 3. Get insights
+    // 3. Get insights - fetch directly from database
     let insightsList: any[] = [];
     try {
       const { data: rawInsights, error: insightsError } = await sb
@@ -100,91 +102,81 @@ router.get("/documents/:id/report", async (req, res, next) => {
         .select('*')
         .eq('document_id', documentId)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(100);
 
       if (insightsError) {
         logger.warn('Failed to fetch insights:', { error: insightsError });
-      } else {
-        // Map database fields to API format
-        insightsList = rawInsights?.map((insight: any) => ({
-          id: insight.id,
-          insight_type: insight.category || 'insight',
-          content: insight.description || insight.title || '',
-          confidence_score: insight.confidence ? parseFloat(insight.confidence) : undefined,
-          created_at: insight.created_at,
-        })) || [];
+      } else if (rawInsights && rawInsights.length > 0) {
+        // Extract insights from the insights array inside each row
+        rawInsights.forEach((row: any) => {
+          if (row.insights && Array.isArray(row.insights)) {
+            row.insights.forEach((insight: any, index: number) => {
+              insightsList.push({
+                id: `${row.id}-${index}`,
+                insight_type: insight.category || 'insight',
+                content: insight.description || insight.title || 'No content',
+                impact: insight.impact || null,
+                confidence_score: insight.confidence ?
+                  (typeof insight.confidence === 'number' ? insight.confidence :
+                   insight.confidence === 'High' ? 0.9 :
+                   insight.confidence === 'Medium' ? 0.6 :
+                   insight.confidence === 'Low' ? 0.3 : undefined) : undefined,
+                created_at: row.created_at,
+              });
+            });
+          }
+        });
       }
+
+      logger.info(`Found ${insightsList.length} insights for document ${documentId}`);
     } catch (err) {
       logger.warn('Error fetching insights:', { error: err });
     }
 
-    logger.info(`Found ${insightsList.length} insights for document ${documentId}`);
-
-    // 4. Get recent chat messages for this document
-    // Try both approaches - first with relationship, if that fails, just get messages for user
-    let messages = [];
-    let messagesError = null;
-
-    // First try: Get messages through conversations relationship
+    // 4. Get chat messages for this document
+    let chatHighlights: Array<{ question: string; answer: string; timestamp: string }> = [];
     try {
-      const result = await sb
-        .from('messages')
-        .select(`
-          id,
-          role,
-          content,
-          created_at,
-          conversation_id
-        `)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      const messageRepo = new MessageRepository(sb);
+      const messages = await messageRepo.findByDocumentId(documentId, 100, 0);
 
-      if (!result.error) {
-        messages = result.data || [];
-      } else {
-        messagesError = result.error;
-        logger.warn('Failed to fetch messages:', messagesError);
-      }
-    } catch (err) {
-      logger.warn('Error fetching messages:', err);
-    }
-
-    logger.info(`Found ${messages.length} total messages`);
-
-    // Filter and format Q&A pairs
-    const chatHighlights: Array<{ question: string; answer: string; timestamp: string }> = [];
-    if (messages && messages.length > 0) {
+      // Filter messages to find Q&A pairs (assistant responses followed by user questions)
       for (let i = 0; i < messages.length - 1; i++) {
-        const msg = messages[i] as any;
-        const nextMsg = messages[i + 1] as any;
+        const msg = messages[i];
+        const nextMsg = messages[i + 1];
 
         if (msg.role === 'assistant' && nextMsg.role === 'user') {
           chatHighlights.push({
             question: nextMsg.content,
             answer: msg.content,
-            timestamp: msg.created_at,
+            timestamp: msg.createdAt.toISOString(),
           });
 
-          if (chatHighlights.length >= 5) break;
+          if (chatHighlights.length >= 10) break;
         }
       }
-    }
 
-    logger.info(`Found ${chatHighlights.length} chat highlights`);
+      logger.info(`Found ${chatHighlights.length} chat highlights for document ${documentId}`);
+    } catch (err) {
+      logger.warn('Error fetching chat messages:', { error: err });
+    }
 
     // 5. Get validation data if available
     let validationData = null;
     try {
       const { data: contradictions, error: contradictionsError } = await sb
-        .from('contradiction_analysis')
+        .from('document_validation')
         .select('*')
         .eq('document_id', documentId)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
+      if (contradictionsError) {
+        logger.warn('Error fetching validation data:', { error: contradictionsError });
+      }
+
       if (!contradictionsError && contradictions) {
-        logger.info('Found validation data for report');
+        logger.info('Found validation data for report:', contradictions);
         validationData = {
           contradictions: contradictions.contradictions || [],
           gaps: contradictions.gaps || [],

@@ -2,6 +2,7 @@ import { useParams, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "@/shared/lib/api";
 import { Header } from "@/shared/components/Header";
+import { LoadingSpinner } from "@/shared/components/LoadingSpinner.tsx";
 import { Chat } from "../chat/Chat.tsx";
 import { Sidebar } from "../chat/Sidebar.tsx";
 import { useAuth } from "../../auth/context/AuthContext.tsx";
@@ -72,9 +73,7 @@ export default function DocumentLayout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading document...</div>
-      </div>
+      <LoadingSpinner message="Loading document..." fullScreen />
     );
   }
 

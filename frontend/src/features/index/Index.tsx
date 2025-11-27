@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react";
 import {useNavigate, useLocation} from "react-router-dom";
 import {FileUpload} from "../../shared/components/FileUpload.tsx";
+import {LoadingSpinner} from "@/shared/components/LoadingSpinner.tsx";
 import {uploadDocument} from "@/shared/lib/apiClient.ts";
 import {useToast} from "@/shared/hooks/use-toast.ts";
 import {useAuth} from "../auth/context/AuthContext.tsx";
@@ -80,15 +81,11 @@ const Index = () => {
 
   if (isAnalyzing) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4 animate-fade-in">
-          <div className="w-16 h-16 mx-auto border-4 border-chart-mid border-t-transparent rounded-full animate-spin" />
-          <div>
-            <p className="text-xl font-semibold">Uploading and analyzing document...</p>
-            <p className="text-muted-foreground">Extracting text and processing content</p>
-          </div>
-        </div>
-      </div>
+      <LoadingSpinner
+        message="Uploading and analyzing document..."
+        subMessage="Extracting text and processing content"
+        fullScreen
+      />
     );
   }
 

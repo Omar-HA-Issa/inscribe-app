@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, FileText, Calendar, HardDrive, Loader2, AlertCircle, CheckSquare, Square } from 'lucide-react';
+import { Download, FileText, Calendar, HardDrive, AlertCircle, CheckSquare, Square } from 'lucide-react';
 import { getDocumentReport, DocumentReport } from '@/shared/lib/documentsApi';
+import { LoadingSpinner } from '@/shared/components/LoadingSpinner.tsx';
+import { Document, Packer, Paragraph, HeadingLevel, TextRun, PageBreak, UnorderedList } from 'docx';
 
 interface ReportSection {
   id: string;
   label: string;
   enabled: boolean;
   hasData: boolean;
+}
+
+interface InsightToggle {
+  id: string;
+  enabled: boolean;
 }
 
 export const Report = () => {
@@ -20,10 +27,10 @@ export const Report = () => {
     { id: 'summary', label: 'Executive Summary', enabled: true, hasData: false },
     { id: 'keyFindings', label: 'Key Findings', enabled: true, hasData: false },
     { id: 'keywords', label: 'Keywords', enabled: true, hasData: false },
-    { id: 'insights', label: 'Key Insights', enabled: true, hasData: false },
+    { id: 'insights', label: 'Insights', enabled: true, hasData: false },
     { id: 'validation', label: 'Validation Analysis', enabled: true, hasData: false },
-    { id: 'chat', label: 'Q&A Highlights', enabled: true, hasData: false },
   ]);
+  const [insightToggles, setInsightToggles] = useState<InsightToggle[]>([]);
 
   useEffect(() => {
     const fetchReport = async () => {
@@ -50,12 +57,18 @@ export const Report = () => {
               return { ...section, hasData: data.insights.length > 0 };
             case 'validation':
               return { ...section, hasData: !!(data.validation && (data.validation.contradictions.length > 0 || data.validation.gaps.length > 0 || data.validation.recommendations.length > 0)) };
-            case 'chat':
-              return { ...section, hasData: data.chatHighlights.length > 0 };
             default:
               return section;
           }
         }));
+
+        // Initialize insight toggles - all enabled by default
+        if (data.insights && data.insights.length > 0) {
+          setInsightToggles(data.insights.map(insight => ({
+            id: insight.id,
+            enabled: true,
+          })));
+        }
       } catch (err) {
         console.error('Failed to fetch report:', err);
         setError(err instanceof Error ? err.message : 'Failed to load report');
@@ -73,141 +86,266 @@ export const Report = () => {
     ));
   };
 
-  const handleDownload = () => {
-    if (!report) return;
-
-    const content = generateTextReport(report);
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${report.document.fileName.replace(/\.[^/.]+$/, '')}_report.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const toggleInsight = (insightId: string) => {
+    setInsightToggles(prev => prev.map(t =>
+      t.id === insightId ? { ...t, enabled: !t.enabled } : t
+    ));
   };
 
-  const generateTextReport = (report: DocumentReport): string => {
-    const lines: string[] = [];
-    const enabledSections = sections.filter(s => s.enabled && s.hasData);
+  const getOrganizedInsights = () => {
+    if (!report?.insights) return {};
 
-    lines.push('DOCUMENT ANALYSIS REPORT');
-    lines.push('='.repeat(80));
-    lines.push('');
+    const categoryOrder = ['opportunity', 'risk', 'anomaly', 'pattern'];
+    const organized: Record<string, typeof report.insights> = {};
+
+    categoryOrder.forEach(category => {
+      const insights = report.insights
+        .filter(i => (i.insight_type || 'insight').toLowerCase() === category)
+        .sort((a, b) => {
+          const scoreA = a.confidence_score || 0;
+          const scoreB = b.confidence_score || 0;
+          return scoreB - scoreA; // High to low
+        });
+
+      if (insights.length > 0) {
+        organized[category] = insights;
+      }
+    });
+
+    return organized;
+  };
+
+  const handleDownload = async () => {
+    if (!report) return;
+
+    try {
+      const docxDoc = generateDocxReport(report);
+      const blob = await Packer.toBlob(docxDoc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${report.document.fileName.replace(/\.[^/.]+$/, '')}_report.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to generate DOCX:', error);
+    }
+  };
+
+  const generateDocxReport = (report: DocumentReport): Document => {
+    const enabledSections = sections.filter(s => s.enabled && s.hasData);
+    const sections_content: Paragraph[] = [];
+
+    // Title
+    sections_content.push(
+      new Paragraph({
+        text: 'DOCUMENT ANALYSIS REPORT',
+        heading: HeadingLevel.HEADING_1,
+        spacing: { after: 200 },
+      })
+    );
 
     // Document Info
     if (enabledSections.find(s => s.id === 'metadata')) {
-      lines.push('DOCUMENT INFORMATION');
-      lines.push('-'.repeat(80));
-      lines.push(`File Name: ${report.document.fileName}`);
-      lines.push(`File Type: ${report.document.fileType}`);
-      lines.push(`File Size: ${formatFileSize(report.document.fileSize)}`);
-      lines.push(`Upload Date: ${new Date(report.document.createdAt).toLocaleString()}`);
-      lines.push('');
+      sections_content.push(
+        new Paragraph({
+          text: 'DOCUMENT INFORMATION',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { after: 100 },
+        }),
+        new Paragraph(`File Name: ${report.document.fileName}`),
+        new Paragraph(`File Type: ${report.document.fileType}`),
+        new Paragraph(`File Size: ${formatFileSize(report.document.fileSize)}`),
+        new Paragraph(`Upload Date: ${new Date(report.document.createdAt).toLocaleString()}`),
+        new Paragraph({ text: '', spacing: { after: 200 } })
+      );
     }
 
     // Summary
     if (enabledSections.find(s => s.id === 'summary') && report.summary?.overview) {
-      lines.push('EXECUTIVE SUMMARY');
-      lines.push('-'.repeat(80));
-      lines.push(report.summary.overview);
-      lines.push('');
+      sections_content.push(
+        new Paragraph({
+          text: 'EXECUTIVE SUMMARY',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { after: 100 },
+        }),
+        new Paragraph(report.summary.overview),
+        new Paragraph({ text: '', spacing: { after: 200 } })
+      );
     }
 
     // Key Findings
     if (enabledSections.find(s => s.id === 'keyFindings') && report.summary?.keyFindings && report.summary.keyFindings.length > 0) {
-      lines.push('KEY FINDINGS');
-      lines.push('-'.repeat(80));
-      report.summary.keyFindings.forEach((finding, i) => {
-        lines.push(`  ${i + 1}. ${finding}`);
-      });
-      lines.push('');
+      sections_content.push(
+        new Paragraph({
+          text: 'KEY FINDINGS',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { after: 100 },
+        }),
+        ...report.summary.keyFindings.map((finding, i) => new Paragraph(`${i + 1}. ${finding}`)),
+        new Paragraph({ text: '', spacing: { after: 200 } })
+      );
     }
 
     // Keywords
     if (enabledSections.find(s => s.id === 'keywords') && report.summary?.keywords && report.summary.keywords.length > 0) {
-      lines.push('KEYWORDS');
-      lines.push('-'.repeat(80));
-      lines.push(report.summary.keywords.join(', '));
-      lines.push('');
+      sections_content.push(
+        new Paragraph({
+          text: 'KEYWORDS',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { after: 100 },
+        }),
+        new Paragraph(report.summary.keywords.join(', ')),
+        new Paragraph({ text: '', spacing: { after: 200 } })
+      );
     }
 
     // Insights
     if (enabledSections.find(s => s.id === 'insights') && report.insights.length > 0) {
-      lines.push('KEY INSIGHTS');
-      lines.push('-'.repeat(80));
-      report.insights.slice(0, 5).forEach((insight, i) => {
-        lines.push(`${i + 1}. [${insight.insight_type}] ${insight.content}`);
-        if (insight.confidence_score) {
-          lines.push(`   Confidence: ${Math.round(insight.confidence_score * 100)}%`);
-        }
-        lines.push('');
+      const organizedInsights = getOrganizedInsights();
+      const insightItems: Paragraph[] = [
+        new Paragraph({
+          text: 'INSIGHTS',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { after: 100 },
+        }),
+      ];
+
+      Object.entries(organizedInsights).forEach(([category, insights]) => {
+        const categoryLabel =
+          category === 'opportunity' ? 'Opportunities' :
+          category === 'anomaly' ? 'Anomalies' :
+          category.charAt(0).toUpperCase() + category.slice(1) + 's';
+
+        insightItems.push(
+          new Paragraph({
+            text: categoryLabel,
+            heading: HeadingLevel.HEADING_3,
+            spacing: { before: 100, after: 50 },
+          })
+        );
+
+        insights.forEach((insight, i) => {
+          const toggle = insightToggles.find(t => t.id === insight.id);
+          if (toggle?.enabled ?? true) {
+            insightItems.push(
+              new Paragraph(`${i + 1}. ${insight.content}`),
+              ...(insight.confidence_score ? [new Paragraph(`Confidence: ${Math.round(insight.confidence_score * 100)}%`)] : []),
+              ...(insight.impact ? [
+                new Paragraph({
+                  text: `Impact: ${insight.impact}`,
+                  spacing: { before: 50, after: 100 },
+                }),
+              ] : [new Paragraph({ text: '', spacing: { after: 50 } })])
+            );
+          }
+        });
       });
+
+      insightItems.push(new Paragraph({ text: '', spacing: { after: 200 } }));
+      sections_content.push(...insightItems);
     }
 
     // Validation Analysis
     if (enabledSections.find(s => s.id === 'validation') && report.validation) {
       if (report.validation.contradictions.length > 0 || report.validation.gaps.length > 0 || report.validation.recommendations.length > 0) {
-        lines.push('VALIDATION ANALYSIS');
-        lines.push('-'.repeat(80));
-        lines.push('');
+        sections_content.push(
+          new Paragraph({
+            text: 'VALIDATION ANALYSIS',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { after: 100 },
+          })
+        );
 
+        // Risk Assessment
         if (report.validation.riskAssessment) {
-          lines.push('RISK ASSESSMENT');
-          lines.push(`Overall Risk Level: ${report.validation.riskAssessment.overallRisk.toUpperCase()}`);
-          lines.push(`Summary: ${report.validation.riskAssessment.summary}`);
-          lines.push('');
+          sections_content.push(
+            new Paragraph({
+              text: 'Risk Assessment',
+              heading: HeadingLevel.HEADING_3,
+              spacing: { after: 50 },
+            }),
+            new Paragraph(`Overall Risk Level: ${report.validation.riskAssessment.overallRisk.toUpperCase()}`),
+            new Paragraph(`Summary: ${report.validation.riskAssessment.summary}`),
+            new Paragraph({ text: '', spacing: { after: 100 } })
+          );
         }
 
+        // Contradictions
         if (report.validation.contradictions.length > 0) {
-          lines.push('CONTRADICTIONS FOUND');
-          report.validation.contradictions.slice(0, 5).forEach((contradiction, i) => {
-            lines.push(`  ${i + 1}. ${contradiction.claim}`);
-            lines.push(`     Severity: ${contradiction.severity.toUpperCase()} | Confidence: ${contradiction.confidence.toUpperCase()}`);
-            lines.push(`     Explanation: ${contradiction.explanation}`);
-            lines.push('');
-          });
+          sections_content.push(
+            new Paragraph({
+              text: 'Contradictions Found',
+              heading: HeadingLevel.HEADING_3,
+              spacing: { after: 50 },
+            }),
+            ...report.validation.contradictions.slice(0, 5).map((contradiction, i) => [
+              new Paragraph(`${i + 1}. ${contradiction.claim}`),
+              new Paragraph(`Severity: ${contradiction.severity.toUpperCase()} | Confidence: ${contradiction.confidence.toUpperCase()}`),
+              new Paragraph(`Explanation: ${contradiction.explanation}`),
+            ]).flat(),
+            new Paragraph({ text: '', spacing: { after: 100 } })
+          );
         }
 
+        // Information Gaps
         if (report.validation.gaps.length > 0) {
-          lines.push('INFORMATION GAPS');
-          report.validation.gaps.slice(0, 5).forEach((gap, i) => {
-            lines.push(`  ${i + 1}. ${gap.area}`);
-            lines.push(`     Description: ${gap.description}`);
-            lines.push(`     Severity: ${gap.severity.toUpperCase()}`);
-            lines.push('');
-          });
+          sections_content.push(
+            new Paragraph({
+              text: 'Information Gaps',
+              heading: HeadingLevel.HEADING_3,
+              spacing: { after: 50 },
+            }),
+            ...report.validation.gaps.slice(0, 5).map((gap, i) => [
+              new Paragraph(`${i + 1}. ${gap.area}`),
+              new Paragraph(`Description: ${gap.description}`),
+              new Paragraph(`Severity: ${gap.severity.toUpperCase()}`),
+            ]).flat(),
+            new Paragraph({ text: '', spacing: { after: 100 } })
+          );
         }
 
+        // Recommendations
         if (report.validation.recommendations.length > 0) {
-          lines.push('RECOMMENDATIONS');
-          report.validation.recommendations.slice(0, 5).forEach((rec, i) => {
-            lines.push(`  ${i + 1}. ${rec.title}`);
-            lines.push(`     Priority: ${rec.priority.toUpperCase()}`);
-            lines.push(`     Description: ${rec.description}`);
-            lines.push('');
-          });
+          sections_content.push(
+            new Paragraph({
+              text: 'Recommendations',
+              heading: HeadingLevel.HEADING_3,
+              spacing: { after: 50 },
+            }),
+            ...report.validation.recommendations.slice(0, 5).map((rec, i) => [
+              new Paragraph(`${i + 1}. ${rec.title}`),
+              new Paragraph(`Priority: ${rec.priority.toUpperCase()}`),
+              new Paragraph(`Description: ${rec.description}`),
+            ]).flat(),
+            new Paragraph({ text: '', spacing: { after: 100 } })
+          );
         }
+
+        sections_content.push(new Paragraph({ text: '', spacing: { after: 200 } }));
       }
     }
 
-    // Chat Highlights
-    if (enabledSections.find(s => s.id === 'chat') && report.chatHighlights.length > 0) {
-      lines.push('CHAT Q&A HIGHLIGHTS');
-      lines.push('-'.repeat(80));
-      report.chatHighlights.forEach((qa, i) => {
-        lines.push(`Q${i + 1}: ${qa.question}`);
-        lines.push(`A${i + 1}: ${qa.answer.substring(0, 200)}${qa.answer.length > 200 ? '...' : ''}`);
-        lines.push('');
-      });
-    }
+    // Footer
+    sections_content.push(
+      new Paragraph({
+        text: `Report Generated: ${new Date(report.generatedAt).toLocaleString()}`,
+        spacing: { before: 300, after: 100 },
+      }),
+      new Paragraph({
+        text: 'Generated by Inscribe AI Document Intelligence Platform',
+      })
+    );
 
-    lines.push('='.repeat(80));
-    lines.push(`Report Generated: ${new Date(report.generatedAt).toLocaleString()}`);
-    lines.push(`Generated by Inscribe AI Document Intelligence Platform`);
-
-    return lines.join('\n');
+    return new Document({
+      sections: [
+        {
+          children: sections_content,
+        },
+      ],
+    });
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -218,10 +356,7 @@ export const Report = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <Loader2 className="w-12 h-12 animate-spin text-accent mb-4" />
-        <p className="text-lg text-muted-foreground">Generating report...</p>
-      </div>
+      <LoadingSpinner message="Generating report..." />
     );
   }
 
@@ -405,38 +540,82 @@ export const Report = () => {
         </div>
       )}
 
-      {/* Key Insights */}
-      {sections.find(s => s.id === 'insights' && s.enabled && s.hasData) && report.insights.length > 0 && (
-        <div className="bg-card rounded-xl p-8 shadow-card space-y-6">
+      {/* Insights */}
+      {report.insights && report.insights.length > 0 && sections.find(s => s.id === 'insights' && s.enabled) && (
+        <div className="bg-card rounded-xl p-8 shadow-card space-y-8">
           <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">
-            Key Insights
+            Insights
           </h3>
 
-          <div className="space-y-4">
-            {report.insights.slice(0, 5).map((insight, i) => (
-              <div
-                key={insight.id}
-                className="bg-muted/30 rounded-lg p-4 border-l-2 border-accent/30"
-              >
-                <div className="flex items-start justify-between gap-4 mb-2">
-                  <span className="text-xs font-semibold text-accent uppercase tracking-wide">
-                    {insight.insight_type}
-                  </span>
-                  {insight.confidence_score && (
-                    <span className="text-xs text-muted-foreground">
-                      {Math.round(insight.confidence_score * 100)}% confidence
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-foreground/90 leading-relaxed">{insight.content}</p>
+          {Object.entries(getOrganizedInsights()).map(([category, insights]) => {
+            const categoryLabel =
+              category === 'opportunity' ? 'Opportunities' :
+              category === 'anomaly' ? 'Anomalies' :
+              category.charAt(0).toUpperCase() + category.slice(1) + 's';
+
+            return (
+            <div key={category} className="space-y-4">
+              <h4 className="text-sm font-semibold text-accent uppercase tracking-wide">
+                {categoryLabel}
+              </h4>
+
+              <div className="space-y-4">
+                {insights.map((insight) => {
+                  const toggle = insightToggles.find(t => t.id === insight.id);
+                  const isEnabled = toggle?.enabled ?? true;
+
+                  return (
+                    <div
+                      key={insight.id}
+                      className={`rounded-lg p-4 border-l-4 transition-all ${
+                        isEnabled
+                          ? 'bg-muted/30 border-accent/30'
+                          : 'bg-muted/10 border-muted/20 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <button
+                          onClick={() => toggleInsight(insight.id)}
+                          className="flex-shrink-0 mt-1"
+                          aria-label={`Toggle insight ${insight.id}`}
+                        >
+                          {isEnabled ? (
+                            <CheckSquare className="w-5 h-5 text-accent" />
+                          ) : (
+                            <Square className="w-5 h-5 text-muted-foreground" />
+                          )}
+                        </button>
+
+                        <div className="flex-1 space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold text-foreground">{insight.content}</p>
+                            {insight.confidence_score && (
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                {Math.round(insight.confidence_score * 100)}% confidence
+                              </span>
+                            )}
+                          </div>
+
+                          {insight.impact && (
+                            <div className="mt-2 pt-2 border-t border-border/30">
+                              <p className="text-xs font-medium text-muted-foreground mb-1">Impact:</p>
+                              <p className="text-sm text-muted-foreground leading-relaxed">{insight.impact}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+            </div>
+            );
+          })}
         </div>
       )}
 
       {/* Validation Analysis */}
-      {sections.find(s => s.id === 'validation' && s.enabled && s.hasData) && report.validation && (
+      {report.validation && sections.find(s => s.id === 'validation' && s.enabled) && (
         <div className="bg-card rounded-xl p-8 shadow-card space-y-6">
           <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">
             Validation Analysis
@@ -500,41 +679,6 @@ export const Report = () => {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Chat Highlights */}
-      {sections.find(s => s.id === 'chat' && s.enabled && s.hasData) && report.chatHighlights.length > 0 && (
-        <div className="bg-card rounded-xl p-8 shadow-card space-y-6">
-          <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">
-            Q&A Highlights
-          </h3>
-
-          <div className="space-y-6">
-            {report.chatHighlights.map((qa, i) => (
-              <div key={i} className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <span className="flex-shrink-0 w-8 h-8 bg-accent/20 text-accent rounded-full flex items-center justify-center font-semibold text-sm">
-                    Q
-                  </span>
-                  <p className="text-sm text-foreground pt-1">{qa.question}</p>
-                </div>
-
-                <div className="flex items-start gap-3 pl-2">
-                  <span className="flex-shrink-0 w-8 h-8 bg-muted text-muted-foreground rounded-full flex items-center justify-center font-semibold text-sm">
-                    A
-                  </span>
-                  <p className="text-sm text-muted-foreground pt-1 leading-relaxed">
-                    {qa.answer.length > 300 ? qa.answer.substring(0, 300) + '...' : qa.answer}
-                  </p>
-                </div>
-
-                {i < report.chatHighlights.length - 1 && (
-                  <div className="border-t border-border mt-4" />
-                )}
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
