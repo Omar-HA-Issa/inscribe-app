@@ -15,16 +15,11 @@ const Index = () => {
 
   // Check if we came from a document page
   useEffect(() => {
+    // Only show "Back to Document" button if user explicitly clicked "Change Document"
     // Extract document ID from location state if user clicked "Change Document"
     const state = location.state as { fromDocumentId?: string } | null;
     if (state?.fromDocumentId) {
       setLastDocumentId(state.fromDocumentId);
-    } else {
-      // Try to get last viewed document from localStorage
-      const lastDoc = localStorage.getItem('lastViewedDocument');
-      if (lastDoc) {
-        setLastDocumentId(lastDoc);
-      }
     }
   }, [location]);
 

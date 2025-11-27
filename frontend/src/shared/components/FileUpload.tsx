@@ -283,7 +283,7 @@ export const FileUpload = ({
       <div className="text-center mb-12">
         <h1 className="text-5xl font-semibold tracking-tight mb-4"
             style={{textShadow: '0 0 12px rgba(211,211,211,0.3)'}}>
-          DocuMind
+          Inscribe
         </h1>
         <p className="text-muted-foreground text-lg">
           Upload a document or select from your library to get started

@@ -85,7 +85,7 @@ export default function Signup() {
             className="text-3xl font-semibold tracking-tight text-foreground"
             style={{ textShadow: '0 0 12px rgba(211,211,211,0.4)' }}
           >
-            DocuMind
+            Inscribe
           </h1>
           <p className="text-muted-foreground">Create your account to get started</p>
         </div>

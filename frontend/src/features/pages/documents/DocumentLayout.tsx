@@ -95,7 +95,7 @@ export default function DocumentLayout() {
           activeTab={currentTab}
           onTabChange={(tab) => navigate(`/documents/${id}/${tab}`)}
           fileName={document?.file_name}
-          onChangeDocument={() => navigate("/")}
+          onChangeDocument={() => navigate("/", { state: { fromDocumentId: id } })}
           onLogout={handleLogout}
           tabs={tabs}
         />
@@ -116,7 +116,7 @@ export default function DocumentLayout() {
         activeTab={currentTab}
         onTabChange={(tab) => navigate(`/documents/${id}/${tab}`)}
         fileName={document?.file_name}
-        onChangeDocument={() => navigate("/")}
+        onChangeDocument={() => navigate("/", { state: { fromDocumentId: id } })}
         onLogout={handleLogout}
         tabs={tabs}
       />

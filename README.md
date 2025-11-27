@@ -1,10 +1,10 @@
-# DocuMind 🧠
+# Inscribe 🧠
 
 **AI-Powered Document Intelligence Platform**
 
 > Discover what your documents hide beneath the surface
 
-DocuMind is a RAG (Retrieval-Augmented Generation) powered document analysis platform that helps you uploadRoutes, analyze, and chat with your documents using AI. Extract insights, detect patterns, and uncover hidden information across your document collection.
+Inscribe is a RAG (Retrieval-Augmented Generation) powered document analysis platform that helps you uploadRoutes, analyze, and chat with your documents using AI. Extract insights, detect patterns, and uncover hidden information across your document collection.
 
 ---
 
@@ -13,7 +13,7 @@ DocuMind is a RAG (Retrieval-Augmented Generation) powered document analysis pla
 **Status:** In Development - Phase 1 (MVP)  
 **Timeline:** 2-3 week sprint  
 
-### What DocuMind Does:
+### What Inscribe Does:
 
 - 📄 **Upload & Parse** - Support for PDF, TXT, and CSV files
 - 🤖 **AI Summarization** - Automatic document summaries and key insights
@@ -80,8 +80,8 @@ DocuMind is a RAG (Retrieval-Augmented Generation) powered document analysis pla
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/docu-mind-app.git
-   cd docu-mind-app
+   git clone https://github.com/YOUR_USERNAME/inscribe-app.git
+   cd inscribe-app
    ```
 
 2. **Install dependencies**
@@ -123,7 +123,7 @@ DocuMind is a RAG (Retrieval-Augmented Generation) powered document analysis pla
 ## Project Structure
 
 ```
-docu-mind-app/
+inscribe-app/
 ├── backend/                 # Express.js backend
 │   ├── src/
 │   │   ├── routes/         # API routes (uploadRoutes, chat, etc.)

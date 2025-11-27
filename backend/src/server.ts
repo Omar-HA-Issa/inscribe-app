@@ -38,7 +38,7 @@ app.use(responseFormatterMiddleware);
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
-    message: "DocuMind Backend API is running",
+    message: "Inscribe Backend API is running",
     timestamp: new Date().toISOString(),
   });
 });

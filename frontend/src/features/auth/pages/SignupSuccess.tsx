@@ -54,7 +54,7 @@ export default function SignupSuccess() {
             Account Created!
           </h1>
           <p className="text-muted-foreground text-lg">
-            Your DocuMind account has been successfully created.
+            Your Inscribe account has been successfully created.
           </p>
         </div>
 

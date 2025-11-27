@@ -1,6 +1,6 @@
 import {LogOut, Settings} from "lucide-react";
 import {useEffect, useRef, useState} from "react";
-import Logo from "@/shared/assets/images/logo.png";
+import Logo from "@/shared/assets/images/Inscribe_Logo.png";
 
 export interface Tab {
   id: string;
@@ -64,14 +64,14 @@ export const Header = ({
             <div className="flex items-center gap-2">
               <img
                   src={Logo}
-                  alt="DocuMind Logo"
-                  className="w-7 h-7 object-contain"
+                  alt="Inscribe Logo"
+                  className="w-10 h-10 object-contain"
               />
               <span
                   className="text-lg font-semibold tracking-tight text-foreground"
                   style={{textShadow: "0 0 8px rgba(211,211,211,0.3)"}}
               >
-                DocuMind
+                Inscribe
               </span>
             </div>
 
