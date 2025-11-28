@@ -1,74 +1,39 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { SearchService, type SearchResult } from "./search.service";
-import { openaiConfig } from "../config/openai.config";
+import { adminClient } from '../../core/clients/supabaseClient';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { SearchService } from './search.service';
+import { logger } from '../../shared/utils/logger';
 
-export interface ChatSource {
-  document: string;
-  document_id: string;
-  chunksUsed: number;
-  topSimilarity: number;
-}
-
-export interface ChatResponse {
-  success: boolean;
-  answer: string;
-  sources: ChatSource[];
-  chunksUsed: number;
-}
-
+/**
+ * Legacy ChatService wrapper for backward compatibility
+ * This maintains the old static method API while delegating to the new services
+ */
 export class ChatService {
-  /**
-   * Main chat endpoint: semantic search + GPT generation
-   */
   static async chat(
-    query: string,
-    limit: number = 5,
-    similarityThreshold: number = 0.5,
+    question: string,
+    topK: number = 6,
+    similarityThreshold: number = 0.15,
     selectedDocumentIds?: string[],
-    supabase?: SupabaseClient
+    sb?: SupabaseClient,
+    userId?: string
   ): Promise<ChatResponse> {
     try {
-      // Detect if this is a comparison/difference question
-      const isComparisonQuery = /\b(difference|compare|contrast|between|versus|vs|both|each|all)\b/i.test(query);
+      const client = sb || adminClient();
+      const searchService = new SearchService(null as any, null as any); // Uses legacy pattern
 
-      let chunks: SearchResult[];
-
-      if (isComparisonQuery && selectedDocumentIds && selectedDocumentIds.length > 1) {
-        // For comparison queries, get chunks from each selected document
-        console.log('🔀 Comparison query detected - fetching from all selected docs');
-
-        const chunksPerDoc = Math.max(2, Math.ceil(limit / selectedDocumentIds.length));
-        const allChunks: SearchResult[] = [];
-
-        for (const docId of selectedDocumentIds) {
-          try {
-            const docChunks = await SearchService.getDocumentChunks(docId, supabase);
-            // Take first N chunks from each document
-            allChunks.push(...docChunks.slice(0, chunksPerDoc));
-            console.log(`  ✅ Got ${docChunks.length} chunks from document ${docId}`);
-          } catch (err) {
-            console.error(`  ❌ Failed to get chunks from document ${docId}:`, err);
-          }
-        }
-
-        chunks = allChunks;
-        console.log(`🔀 Total chunks for comparison: ${chunks.length}`);
-      } else {
-        // Normal semantic search
-        chunks = await SearchService.search(
-          query,
-          limit,
-          similarityThreshold,
-          selectedDocumentIds,
-          supabase
-        );
-      }
+      // Perform semantic search
+      const chunks = await searchService.searchChunks(
+        question,
+        topK,
+        similarityThreshold,
+        selectedDocumentIds,
+        client,
+        userId
+      );
 
       if (!chunks || chunks.length === 0) {
         return {
           success: true,
-          answer:
-            "I couldn't find relevant information within the selected documents. Try adjusting your selection or rephrasing the query.",
+          answer: 'I could not find relevant information in the selected documents. Try adjusting your selection or rephrasing your question.',
           sources: [],
           chunksUsed: 0,
         };
@@ -76,130 +41,156 @@ export class ChatService {
 
       // Build context from chunks
       const context = chunks
-        .map(
-          (c, idx) =>
-            `[${idx + 1}] From "${c.document_title}":\n${c.content}\n`
-        )
-        .join("\n");
+        .map((chunk, idx) => {
+          return `[${idx + 1}] Similarity: ${(chunk.similarity * 100).toFixed(1)}%\n${chunk.content}\n`;
+        })
+        .join('\n---\n');
 
-      // Generate answer with GPT
-      const systemPrompt = isComparisonQuery
-        ? "You are a helpful assistant that compares and contrasts documents. When comparing documents, clearly identify which information comes from which document. Provide a structured comparison highlighting key differences and similarities."
-        : "You are a helpful assistant that answers questions based on provided document excerpts. Always cite which document your information comes from.";
+      // Generate answer using OpenAI
+      const response = await this.generateAnswer(question, context);
 
-      const completion = await openaiConfig.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          {
-            role: "user",
-            content: `Based on the following document excerpts, answer this question:\n\nQuestion: ${query}\n\nContext:\n${context}\n\nAnswer:`,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 800,
-      });
-
-      const answer = completion.choices[0]?.message?.content ?? "No answer generated.";
-
-      // Group chunks by document for source citations
-      const docMap = new Map<string, { document: string; chunks: SearchResult[] }>();
-
+      // Build sources
+      const docMap = new Map<string, number>();
       for (const chunk of chunks) {
-        const key = chunk.document_id;
-        if (!docMap.has(key)) {
-          docMap.set(key, {
-            document: chunk.document_title,
-            chunks: [],
-          });
-        }
-        docMap.get(key)!.chunks.push(chunk);
+        docMap.set(chunk.document_id, (docMap.get(chunk.document_id) || 0) + 1);
       }
 
-      const sources: ChatSource[] = Array.from(docMap.values()).map((group) => {
-        const topSim = Math.max(...group.chunks.map((c) => c.similarity));
-        return {
-          document: group.document,
-          document_id: group.chunks[0].document_id,
-          chunksUsed: group.chunks.length,
-          topSimilarity: topSim,
-        };
-      });
+      const sources = Array.from(docMap.entries()).map(([docId, count]) => ({
+        documentId: docId,
+        chunksUsed: count,
+      }));
 
       return {
         success: true,
-        answer,
+        answer: response,
         sources,
         chunksUsed: chunks.length,
       };
     } catch (error) {
-      console.error("ChatService.chat error:", error);
+      logger.error('Chat error:', { error });
       throw error;
     }
   }
 
-  /**
-   * Summarize a specific document
-   */
   static async summarizeDocument(
     documentId: string,
     maxChunks: number = 30,
-    supabase?: SupabaseClient
-  ): Promise<ChatResponse> {
+    sb?: SupabaseClient
+  ): Promise<SummaryResponse> {
     try {
-      const chunks = await SearchService.getDocumentChunks(documentId, supabase);
+      const client = sb || adminClient();
+      const searchService = new SearchService(null as any, null as any);
+
+      // Get chunks for this document
+      const chunks = await searchService.getDocumentChunks(documentId, maxChunks, client);
 
       if (!chunks || chunks.length === 0) {
         return {
           success: true,
-          answer: "No content found in this document.",
-          sources: [],
+          summary: 'No content found in this document.',
           chunksUsed: 0,
         };
       }
 
-      // Limit chunks for summarization
-      const limitedChunks = chunks.slice(0, maxChunks);
-      const fullText = limitedChunks.map((c) => c.content).join("\n\n");
+      // Build full text from chunks
+      const fullText = chunks.map(c => c.content).join('\n\n');
 
-      const completion = await openaiConfig.chat.completions.create({
-        model: "gpt-4o-mini",
+      // Generate summary
+      const summary = await this.generateSummary(fullText);
+
+      return {
+        success: true,
+        summary,
+        chunksUsed: chunks.length,
+      };
+    } catch (error) {
+      logger.error('Summarize error:', { error });
+      throw error;
+    }
+  }
+
+  private static async generateAnswer(question: string, context: string): Promise<string> {
+    // Use OpenAI to generate answer
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
         messages: [
           {
-            role: "system",
-            content:
-              "You are a helpful assistant that creates concise, informative summaries of documents. Focus on the index points, key findings, and important details.",
+            role: 'system',
+            content: 'You are a helpful assistant that answers questions based on provided document excerpts. Always cite which document your information comes from.',
           },
           {
-            role: "user",
-            content: `Please provide a comprehensive summary of the following document:\n\n${fullText}`,
+            role: 'user',
+            content: `Based on the following document excerpts, answer this question:\n\nQuestion: ${question}\n\nContext:\n${context}\n\nProvide a comprehensive answer based on the provided context.`,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 1000,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${data.error?.message}`);
+    }
+
+    return data.choices[0]?.message?.content || 'Unable to generate response';
+  }
+
+  private static async generateSummary(text: string): Promise<string> {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant that creates concise, informative document summaries.',
+          },
+          {
+            role: 'user',
+            content: `Please provide a comprehensive summary of the following document:\n\n${text}`,
           },
         ],
         temperature: 0.5,
         max_tokens: 500,
-      });
+      }),
+    });
 
-      const summary = completion.choices[0]?.message?.content ?? "No summary generated.";
-
-      return {
-        success: true,
-        answer: summary,
-        sources: [
-          {
-            document: limitedChunks[0].document_title,
-            document_id: documentId,
-            chunksUsed: limitedChunks.length,
-            topSimilarity: 1.0,
-          },
-        ],
-        chunksUsed: limitedChunks.length,
-      };
-    } catch (error) {
-      console.error("ChatService.summarizeDocument error:", error);
-      throw error;
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${data.error?.message}`);
     }
+
+    return data.choices[0]?.message?.content || 'Unable to generate summary';
   }
+}
+
+export interface ChatResponse {
+  success: boolean;
+  answer: string;
+  sources: Array<{ documentId: string; chunksUsed: number }>;
+  chunksUsed: number;
+}
+
+export interface SummaryResponse {
+  success: boolean;
+  summary: string;
+  chunksUsed: number;
+}
+
+export interface Chunk {
+  id: string;
+  document_id: string;
+  content: string;
+  similarity: number;
 }

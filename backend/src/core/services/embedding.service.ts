@@ -1,51 +1,39 @@
-import OpenAI from "openai";
-
-function getClient(apiKey?: string) {
-  return new OpenAI({ apiKey: apiKey ?? process.env.OPENAI_API_KEY! });
-}
+import OpenAI from 'openai';
 
 /**
- * Supports BOTH static and instance usage:
+ * Legacy EmbeddingService wrapper for backward compatibility
+ * This is a simplified interface that maintains the old static method API
+ * while delegating to OpenAI's client
  */
+const openaiClient = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export class EmbeddingService {
-  private client: OpenAI;
+  static async generateEmbeddings(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) {
+      return [];
+    }
 
-  constructor(apiKey?: string) {
-    this.client = getClient(apiKey);
-  }
+    const embeddings: number[][] = [];
+    const BATCH_SIZE = 64; // Process in reasonable batch sizes
 
-  static async generateEmbedding(input: string): Promise<number[]> {
-    const client = getClient();
-    const response = await client.embeddings.create({
-      model: "text-embedding-3-small",
-      input,
-    });
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+      const batch = texts.slice(i, i + BATCH_SIZE);
 
-    return response.data[0].embedding;
-  }
+      const response = await openaiClient.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: batch,
+      });
 
-  static async generateEmbeddings(input: string[] | string): Promise<number[][]> {
-    const client = getClient();
-    const inputs = Array.isArray(input) ? input : [input];
+      // Sort by index to maintain order
+      const sortedEmbeddings = response.data.sort((a, b) => a.index - b.index);
 
-    const response = await client.embeddings.create({
-      model: "text-embedding-3-small",
-      input: inputs,
-    });
+      for (const embedding of sortedEmbeddings) {
+        embeddings.push(embedding.embedding);
+      }
+    }
 
-    return response.data.map((item) => item.embedding);
-  }
-
-  async generateEmbedding(input: string): Promise<number[]> {
-    return EmbeddingService.generateEmbedding(input);
-  }
-
-  async generateEmbeddings(input: string[] | string): Promise<number[][]> {
-    return EmbeddingService.generateEmbeddings(input);
+    return embeddings;
   }
 }
-
-// Optional default instance for imports like: `import embeddingService from ...`
-const embeddingService = new EmbeddingService();
-export default embeddingService;

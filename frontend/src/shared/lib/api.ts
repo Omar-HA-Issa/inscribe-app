@@ -1,9 +1,23 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+/**
+ * API Client with comprehensive error handling and timeout support
+ * SOLID Principles:
+ * - Single Responsibility: Handles all HTTP requests
+ * - Dependency Inversion: Uses injected configuration
+ */
+
+import { API_CONFIG, STORAGE_KEYS, isDevelopment } from '@/shared/constants/config';
+import { ApiError, logError } from '@/shared/lib/errorHandler';
+import { fetchWithRetry, logRequestResponse, createTimeoutSignal } from '@/shared/lib/requestUtils';
 
 interface RequestOptions extends RequestInit {
   body?: any;
+  timeout?: number;
+  retry?: boolean;
 }
 
+/**
+ * Enhanced API Client with retry logic and proper error handling
+ */
 class ApiClient {
   private baseUrl: string;
 
@@ -11,11 +25,16 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
+  /**
+   * Generic request method with full error handling and retry logic
+   */
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    const timeout = options.timeout ?? API_CONFIG.timeout;
+    const shouldRetry = options.retry !== false;
 
     // Get token from localStorage
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem(STORAGE_KEYS.accessToken);
 
     const config: RequestInit = {
       ...options,
@@ -26,58 +45,111 @@ class ApiClient {
       },
     };
 
+    const startTime = performance.now();
+
     try {
-      const response = await fetch(url, config);
+      // Use fetchWithRetry for automatic retry logic on 5xx errors
+      const data = await (shouldRetry
+        ? fetchWithRetry<T>(url, { ...config, timeout })
+        : this.fetchWithTimeout<T>(url, config, timeout));
 
-      // Handle non-JSON responses
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
-        }
-        return {} as T;
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Check for auth errors
-        if (response.status === 401) {
-          throw new Error('Not authenticated');
-        }
-        throw new Error(data.message || `Request failed with status ${response.status}`);
-      }
+      const duration = performance.now() - startTime;
+      logRequestResponse(config.method || 'GET', endpoint, config.body, data, duration);
 
       return data;
     } catch (error) {
-      console.error('API request failed:', error);
+      const duration = performance.now() - startTime;
+      logError(`API ${config.method || 'GET'} ${endpoint}`, error, isDevelopment);
+
+      // Handle and re-throw with context
+      if (error instanceof ApiError) {
+        throw error;
+      }
+
       throw error;
     }
   }
 
-  // Convenience methods
-  get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'GET' });
+  /**
+   * Fetch with timeout (fallback for when retry is disabled)
+   */
+  private async fetchWithTimeout<T>(
+    url: string,
+    config: RequestInit,
+    timeout: number,
+  ): Promise<T> {
+    const signal = createTimeoutSignal(timeout);
+    const response = await fetch(url, { ...config, signal });
+
+    // Handle non-JSON responses
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      if (!response.ok) {
+        throw new ApiError(response.status, `Request failed with status ${response.status}`);
+      }
+      return '' as T;
+    }
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Check for auth errors
+      if (response.status === 401) {
+        throw new ApiError(response.status, 'Session expired. Please login again.');
+      }
+      throw new ApiError(response.status, data.message || `Request failed with status ${response.status}`);
+    }
+
+    return data;
   }
 
-  post<T>(endpoint: string, body?: any): Promise<T> {
+  /**
+   * GET request
+   */
+  get<T>(endpoint: string, options?: Omit<RequestOptions, 'method' | 'body'>): Promise<T> {
+    return this.request<T>(endpoint, { ...options, method: 'GET' });
+  }
+
+  /**
+   * POST request
+   */
+  post<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
     return this.request<T>(endpoint, {
+      ...options,
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
     });
   }
 
-  put<T>(endpoint: string, body?: any): Promise<T> {
+  /**
+   * PUT request
+   */
+  put<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
     return this.request<T>(endpoint, {
+      ...options,
       method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,
     });
   }
 
-  delete<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'DELETE' });
+  /**
+   * DELETE request
+   */
+  delete<T>(endpoint: string, options?: Omit<RequestOptions, 'method' | 'body'>): Promise<T> {
+    return this.request<T>(endpoint, { ...options, method: 'DELETE' });
+  }
+
+  /**
+   * PATCH request
+   */
+  patch<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: 'PATCH',
+      body: body ? JSON.stringify(body) : undefined,
+    });
   }
 }
 
-export const api = new ApiClient(API_BASE_URL);
-export { API_BASE_URL };
+export const api = new ApiClient(API_CONFIG.baseUrl);
+export { API_CONFIG };

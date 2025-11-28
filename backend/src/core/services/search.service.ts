@@ -1,115 +1,82 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { openaiConfig } from "../config/openai.config";
-import { getSupabase, supabaseForUser } from "../config/supabase.config";
+import { SupabaseClient } from '@supabase/supabase-js';
+import { EmbeddingService } from './embedding.service';
+import { logger } from '../../shared/utils/logger';
 
-export interface SearchResult {
-  chunk_id: string;
-  document_id: string;
-  document_title: string;
-  content: string;
-  chunk_index: number;
-  similarity: number;
-}
-
+/**
+ * Legacy SearchService wrapper for backward compatibility
+ */
 export class SearchService {
-  /** Embed a user query (used by vector search) */
-  static async embedQuery(query: string): Promise<number[]> {
-    const resp = await openaiConfig.embeddings.create({
-      model: "text-embedding-3-small",
-      input: query,
-    });
-    return resp.data[0].embedding as unknown as number[];
+  constructor(chunkRepository: any, embeddingService: any) {
+    // Legacy constructor signature for compatibility
   }
 
-  /**
-   * Vector search via RPC (joined to documents) with optional doc filters.
-   */
-  static async search(
-      query: string,
-      limit: number = 5,
-      similarityThreshold: number = 0.5,
-      selectedDocumentIds?: string[],
-      sb?: SupabaseClient
-  ): Promise<SearchResult[]> {
-    const supabase = sb ?? getSupabase();
-    const safeLimit = Math.min(Math.max(1, Math.floor(limit)), 50);
-    const safeThreshold = Math.max(0, Math.min(1, similarityThreshold ?? 0.5));
-
-    console.log('🔍 SearchService.search called:');
-    console.log('  Query:', query);
-    console.log('  Limit:', safeLimit);
-    console.log('  Threshold:', safeThreshold);
-    console.log('  Selected IDs:', selectedDocumentIds);
-
-    const queryEmbedding = await this.embedQuery(query);
-
-    const rpcParams: any = {
-      query_embedding: queryEmbedding,
-      match_threshold: safeThreshold,
-      match_count: safeLimit,
-    };
-
-    if (selectedDocumentIds && selectedDocumentIds.length > 0) {
-      rpcParams.only_document_ids = selectedDocumentIds;
+  async searchChunks(
+    query: string,
+    topK: number,
+    similarityThreshold: number,
+    selectedDocumentIds?: string[],
+    sb?: SupabaseClient,
+    userId?: string
+  ): Promise<any[]> {
+    if (!sb) {
+      throw new Error('Supabase client is required');
     }
 
-    const {data, error} = await supabase.rpc("match_document_chunks", rpcParams);
+    try {
+      // Generate embedding for the query
+      const embeddings = await EmbeddingService.generateEmbeddings([query]);
 
-    if (error) {
-      console.error('❌ Search error:', error);
-      throw new Error(`Search failed: ${error.message}`);
-    }
+      if (!embeddings || embeddings.length === 0) {
+        logger.error('Failed to generate embedding', { query });
+        throw new Error('Failed to generate embedding for query');
+      }
 
-    const rows = (data ?? []) as any[];
-    console.log('✅ SearchService returned:', rows.length, 'chunks');
+      const queryEmbedding = embeddings[0];
 
-    return rows.map((r) => ({
-      chunk_id: r.id,
-      document_id: r.document_id,
-      document_title:
-          (r.document_title && String(r.document_title).trim()) ||
-          (r.document_file_name && String(r.document_file_name).trim()) ||
-          "Unknown Document",
-      content: r.content,
-      chunk_index: r.chunk_index,
-      similarity: typeof r.similarity === "number" ? r.similarity : 0,
-    }));
-  }
+      // Call the Supabase RPC function
+      const { data, error } = await sb.rpc('match_document_chunks', {
+        query_embedding: queryEmbedding as unknown as number[],
+        match_threshold: similarityThreshold,
+        match_count: topK,
+        only_document_ids: selectedDocumentIds || null,
+      });
 
-  static async getDocumentChunks(
-    documentId: string,
-    sb?: SupabaseClient
-  ): Promise<SearchResult[]> {
-    const supabase = sb ?? getSupabase();
+      if (error) {
+        logger.error('RPC error:', { error: error.message || error });
+        throw new Error(`Search RPC error: ${error.message || error}`);
+      }
 
-    const { data, error } = await supabase
-      .from("document_chunks")
-      .select(`
-        id,
-        document_id,
-        content,
-        chunk_index,
-        documents ( title, file_name )
-      `)
-      .eq("document_id", documentId)
-      .order("chunk_index", { ascending: true });
-
-    if (error) {
-      console.error("Get document chunks error:", error);
+      return data || [];
+    } catch (error) {
+      logger.error('Search error:', { error: error instanceof Error ? error.message : error });
       throw error;
     }
+  }
 
-    const rows = (data ?? []) as any[];
-    return rows.map((chunk) => ({
-      chunk_id: chunk.id,
-      document_id: chunk.document_id,
-      document_title:
-        (chunk.documents?.title && String(chunk.documents.title).trim()) ||
-        (chunk.documents?.file_name && String(chunk.documents.file_name).trim()) ||
-        "Unknown Document",
-      content: chunk.content,
-      chunk_index: chunk.chunk_index,
-      similarity: 1.0,
-    }));
+  async getDocumentChunks(
+    documentId: string,
+    maxChunks: number,
+    sb?: SupabaseClient
+  ): Promise<any[]> {
+    if (!sb) {
+      throw new Error('Supabase client is required');
+    }
+
+    try {
+      const { data, error } = await sb
+        .from('document_chunks')
+        .select('id, document_id, content, embedding, metadata')
+        .eq('document_id', documentId)
+        .limit(maxChunks);
+
+      if (error) {
+        throw new Error(`Database query error: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (error) {
+      logger.error('Get document chunks error:', { error });
+      throw error;
+    }
   }
 }

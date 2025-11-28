@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '../../shared/utils/logger';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -132,7 +133,7 @@ export async function detectWithinDocument(
   const cacheKey = getCacheKey([documentId]);
   const cached = getCachedResult(cacheKey);
   if (cached) {
-    console.log('[Validator] Returning cached results');
+    logger.info('[Validator] Returning cached results');
     return cached;
   }
 
@@ -178,7 +179,7 @@ export async function detectAcrossDocuments(
   const cacheKey = getCacheKey(allDocIds);
   const cached = getCachedResult(cacheKey);
   if (cached) {
-    console.log('[Validator] Returning cached results');
+    logger.info('[Validator] Returning cached results');
     return cached;
   }
 
@@ -243,6 +244,18 @@ Provide thorough analysis including:
 4. RECOMMENDATIONS - actionable advice (3-5 items)
 5. RISK ASSESSMENT - overall quality
 
+CRITICAL ITEMS should be the most pressing, actionable problems:
+- Lack of essential information that undermines the document's credibility
+- Missing methodology or sources that should be present
+- Incomplete sections that need expansion
+- Key data or evidence that is absent
+- Inconsistencies that affect the document's reliability
+
+SEVERITY LEVELS for gaps:
+- high = "Big Issue" - Critical problems that significantly impact document quality
+- medium = "Medium Issue" - Moderate problems that should be addressed
+- low = "Minor Issue" - Small gaps or nice-to-have improvements
+
 Return ONLY valid JSON:
 {
   "contradictions": [{
@@ -264,11 +277,13 @@ Return ONLY valid JSON:
   }],
   "riskAssessment": {
     "overallRisk": "high|medium|low", "summary": "...",
-    "criticalItems": ["..."], "nextSteps": ["..."]
+    "criticalItems": ["Specific, actionable issue that needs immediate attention with reasoning"],
+    "nextSteps": ["..."]
   }
 }
 
-Note: overallRisk values mean: high = major issues found, medium = minor issues, low = good quality/consistency`;
+Note: overallRisk values mean: high = major issues found, medium = minor issues, low = good quality/consistency
+criticalItems should be specific problems like: "Missing data sources for climate change claims - add citations to peer-reviewed studies"`;
 }
 
 function buildEnhancedCrossDocumentPrompt(
@@ -296,6 +311,18 @@ CRITICAL FIRST STEP: Determine if these documents are related enough to meaningf
 
 Analyze for contradictions, agreements, gaps, key claims, recommendations, and risk.
 
+CRITICAL ITEMS should identify specific, actionable problems:
+- Direct contradictions between document claims
+- Missing information that one document has but the other lacks
+- Inconsistent methodology or definitions
+- Claims that lack proper substantiation in one document
+- Major discrepancies in scope, timeline, or conclusions
+
+SEVERITY LEVELS for gaps:
+- high = "Big Issue" - Critical missing information that significantly impacts completeness
+- medium = "Medium Issue" - Moderate gaps that should be addressed for better consistency
+- low = "Minor Issue" - Small omissions or nice-to-have enhancements
+
 Return ONLY valid JSON:
 {
   "documentsComparable": true|false,
@@ -320,9 +347,9 @@ Return ONLY valid JSON:
   }],
   "gaps": [{
     "area": "Topic or section",
-    "description": "What's missing from primary",
+    "description": "What's missing from primary compared to comparison",
     "severity": "high|medium|low",
-    "expectedInformation": "What should be included"
+    "expectedInformation": "Specific information that should be included with examples from comparison documents"
   }],
   "keyClaims": [{
     "claim": "Important statement from primary",
@@ -332,7 +359,7 @@ Return ONLY valid JSON:
   }],
   "recommendations": [{
     "title": "Recommendation title",
-    "description": "What to do about findings",
+    "description": "What to do about findings - be specific",
     "priority": "high|medium|low",
     "actionItems": ["Specific action 1", "Specific action 2"],
     "relatedIssues": ["Related contradiction or gap"]
@@ -340,7 +367,7 @@ Return ONLY valid JSON:
   "riskAssessment": {
     "overallRisk": "high|medium|low",
     "summary": "Overall consistency and quality assessment",
-    "criticalItems": ["Most critical conflicts or issues found"],
+    "criticalItems": ["Specific, actionable issue with context - e.g., 'Document lacks methodology section present in comparison - add step-by-step process description'"],
     "nextSteps": ["Recommended next actions"]
   }
 }
@@ -350,7 +377,8 @@ Note: overallRisk values mean: high = major issues/conflicts, medium = minor iss
 IMPORTANT RULES:
 - If documentsComparable is false, return EMPTY arrays for contradictions, gaps, agreements, keyClaims, recommendations, and riskAssessment should note documents are unrelated.
 - If documents are unrelated, DO NOT fabricate connections or suggest changes to make them related.
-- Only compare documents that actually discuss similar topics, concepts, or domains.`;
+- Only compare documents that actually discuss similar topics, concepts, or domains.
+- Critical items must be specific with actionable context, NOT generic statements.`;
 }
 
 async function callGPT4ForAnalysis(prompt: string): Promise<any> {
@@ -629,9 +657,9 @@ export function clearAnalysisCache(documentIds?: string[]): void {
       }
     }
     keysToDelete.forEach(key => analysisCache.delete(key));
-    console.log(`[Validator] Cleared ${keysToDelete.length} cache entries for documents: ${documentIds.join(', ')}`);
+    logger.info(`[Validator] Cleared ${keysToDelete.length} cache entries for documents: ${documentIds.join(', ')}`);
   } else {
     analysisCache.clear();
-    console.log('[Validator] Cleared all cache');
+    logger.info('[Validator] Cleared all cache');
   }
 }

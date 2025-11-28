@@ -7,7 +7,7 @@ import {Input} from "@/shared/ui/input.tsx";
 import {Label} from "@/shared/ui/label.tsx";
 import {useToast} from "@/shared/hooks/use-toast.ts";
 import {useAuth} from "@/features/auth/context/AuthContext.tsx";
-import animationData from "@/shared/assets/animations/loading.json";
+import animationData from "@/shared/assets/animations/Inscribe_Animation.json";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -60,7 +60,7 @@ export default function Login() {
               className="text-3xl font-semibold tracking-tight text-foreground"
               style={{ textShadow: '0 0 12px rgba(211,211,211,0.4)' }}
             >
-              DocuMind
+              Inscribe
             </h1>
             <p className="text-muted-foreground">Sign in to continue your journey</p>
           </div>

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { AlertCircle, Target, Lightbulb, AlertTriangle, Loader2, FileText, Filter, RefreshCw, Clock, Copy, Check, Search, ArrowUpDown } from 'lucide-react';
+import { AlertCircle, Target, Lightbulb, AlertTriangle, FileText, Filter, RefreshCw, Clock, Copy, Check, Search, ArrowUpDown } from 'lucide-react';
 import { generateDocumentInsights, Insight } from '@/shared/lib/insightsApi';
+import { LoadingSpinner } from '@/shared/components/LoadingSpinner.tsx';
 
 const categoryIcons = {
   pattern: Target,
@@ -163,11 +164,10 @@ Confidence: ${insight.confidence}`;
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <Loader2 className="w-12 h-12 animate-spin text-accent" />
-        <p className="mt-4 text-lg text-muted-foreground">Analyzing document...</p>
-        <p className="mt-1 text-xs text-muted-foreground">This May Take a While</p>
-      </div>
+      <LoadingSpinner
+        message="Analyzing document..."
+        subMessage="This may take a while"
+      />
     );
   }
 

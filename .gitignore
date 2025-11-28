@@ -13,6 +13,12 @@ frontend/.env
 backend/.env
 
 # ============================================
+# Claude Code / AI Assistant Config
+# ============================================
+.claude/
+.claude_cache/
+
+# ============================================
 # Dependencies
 # ============================================
 node_modules/
@@ -131,6 +137,21 @@ coverage/
 *.tmp
 *.bak
 *.swp
+
+# ============================================
+# Project-Specific
+# ============================================
+# Documentation & Architecture files (development only)
+# Uncomment if you want to exclude architecture docs from version control
+# ARCHITECTURE_OVERVIEW.md
+# IMPLEMENTATION_SUMMARY.md
+# INTEGRATION_GUIDE.md
+# REFACTORING_GUIDE.md
+# REFACTORING_README.md
+
+# Temporary development files
+*.dev.ts
+*.temp.ts
 
 # ============================================
 # Deployment & Production

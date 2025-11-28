@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { logger } from "../../shared/utils/logger";
 
 /**
  * Centralized, validated OpenAI singleton.
@@ -14,7 +15,7 @@ if (!OPENAI_API_KEY) {
 }
 
 if (!/^sk-(proj|live)-/.test(OPENAI_API_KEY)) {
-  console.warn(
+  logger.warn(
     "⚠️ OPENAI_API_KEY doesn't look like a current project/live key (sk-proj- / sk-live-). Double-check the dashboard."
   );
 }
