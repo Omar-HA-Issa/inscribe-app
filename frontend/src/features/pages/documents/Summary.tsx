@@ -200,7 +200,7 @@ export const Summary = () => {
               Key insights
             </h3>
           </div>
-          <ul className="list-disc list-inside space-y-2 text-sm leading-relaxed text-foreground">
+          <ul className="list-disc list-inside space-y-2 text-lg leading-relaxed text-foreground">
             {keyFindings.map((finding, i) => (
               <li key={i}>{finding}</li>
             ))}

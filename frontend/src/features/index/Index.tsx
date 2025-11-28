@@ -45,16 +45,23 @@ const Index = () => {
     } catch (error: any) {
       console.error("❌ Upload error:", error);
 
-      const errorMessage =
-          error?.message?.includes("already exists")
-              ? error.message
-              : error instanceof Error
-                  ? error.message
-                  : "Failed to upload document. Please try again.";
+      let errorMessage = "Failed to upload document. Please try again.";
+
+      // Extract error message from various error object formats
+      if (typeof error?.userMessage === 'string') {
+        errorMessage = error.userMessage;
+      } else if (typeof error?.message === 'string') {
+        errorMessage = error.message;
+      } else if (error && typeof error === 'object') {
+        const errorStr = JSON.stringify(error);
+        if (errorStr && errorStr !== '{}') {
+          errorMessage = errorStr;
+        }
+      }
 
       toast({
         title: "Upload failed",
-        description: errorMessage,
+        description: String(errorMessage),
         variant: "destructive",
       });
 

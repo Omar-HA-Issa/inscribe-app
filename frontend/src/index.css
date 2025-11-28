@@ -42,6 +42,7 @@ All colors MUST be HSL.
     --chart-cyan: 162 69% 57%; /* #44E1B2 */
     --chart-azure: 207 100% 60%; /* #339CFF */
     --chart-magenta: 269 78% 68%; /* #B65DFF */
+    --chart-dark-blue: 210 90% 38%; /* #0F3A7D - Dark Navy Blue */
     --chart-light: 0 0% 88%; /* #E0E0E0 - for greyscale elements */
     --chart-mid: 0 0% 75%; /* #BFBFBF - for greyscale elements */
     --chart-dark: 0 0% 48%; /* #7A7A7A - for greyscale elements */

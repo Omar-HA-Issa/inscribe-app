@@ -238,8 +238,15 @@ export const FileUpload = ({
       dispatch({ type: 'REMOVE_DOCUMENT', payload: docId });
       dispatch({ type: 'SET_DELETE_CONFIRM', payload: null });
     } catch (error) {
-      const errorMessage = error instanceof ApiError ? error.userMessage : 'Failed to delete document';
-      setUploadError(errorMessage);
+      let errorMessage = 'Failed to delete document';
+
+      if (error instanceof ApiError) {
+        errorMessage = error.userMessage || 'Failed to delete document';
+      } else if (error instanceof Error) {
+        errorMessage = error.message || 'Failed to delete document';
+      }
+
+      setUploadError(String(errorMessage));
     } finally {
       setDeletingDocId(null);
     }
@@ -488,7 +495,9 @@ export const FileUpload = ({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-red-500 mb-1" id="error-title">Upload Failed</h3>
-                <p className="text-sm text-foreground whitespace-pre-line">{uploadError}</p>
+                <p className="text-sm text-foreground whitespace-pre-line">
+                  {typeof uploadError === 'string' ? uploadError : String(uploadError)}
+                </p>
               </div>
               <button
                 onClick={() => setUploadError(null)}
