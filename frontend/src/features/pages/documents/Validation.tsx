@@ -531,7 +531,7 @@ export const Validator = () => {
               <div className={`grid gap-3 text-sm border-t border-border pt-4 ${analysisMode === 'across' ? 'grid-cols-3' : 'grid-cols-2'}`}>
                 <div>
                   <span className="text-muted-foreground">Issues Found:</span>
-                  <p className="text-lg font-semibold text-foreground">{(result.contradictions?.length || 0) + (result.gaps?.length || 0)}</p>
+                  <p className="text-lg font-semibold text-foreground">{(result.contradictions?.length || 0) + (result.gaps?.length || 0) + (result.riskAssessment?.criticalItems?.length || 0)}</p>
                 </div>
                 {analysisMode === 'across' && (
                   <div>

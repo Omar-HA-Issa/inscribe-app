@@ -160,7 +160,7 @@ export const Summary = () => {
   const { overview, keyFindings = [], keywords = [], metadata } = summary;
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="max-w-5xl mx-auto p-8 space-y-8 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
