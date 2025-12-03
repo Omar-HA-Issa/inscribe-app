@@ -64,15 +64,29 @@ export interface DocumentReference {
   chunkIndex: number;
 }
 
+export type ContradictionType = 'version' | 'api' | 'config' | 'process' | 'architecture';
+export type ContradictionSeverity = 'high' | 'medium' | 'low';
+
+export interface ContradictionSource {
+  docName: string;
+  location: string;
+  excerpt: string;
+}
+
 export interface Contradiction {
-  claim: string;
-  evidence: string;
-  severity: 'high' | 'medium' | 'low';
-  confidence: 'high' | 'medium' | 'low';
-  explanation: string;
-  claimSource: DocumentReference;
-  evidenceSource: DocumentReference;
-  impact: string;
+  id: string;
+  severity: ContradictionSeverity;
+  confidence: number;
+  type: ContradictionType;
+  description: string;
+  sources: ContradictionSource[];
+  // Legacy fields for backwards compatibility
+  claim?: string;
+  evidence?: string;
+  explanation?: string;
+  claimSource?: DocumentReference;
+  evidenceSource?: DocumentReference;
+  impact?: string;
 }
 
 export interface InformationGap {
@@ -111,6 +125,11 @@ export interface RiskAssessment {
   nextSteps: string[];
 }
 
+export interface ContradictionsResponse {
+  contradictions: Contradiction[];
+  groupedByType: Record<ContradictionType, Contradiction[]>;
+}
+
 export interface ValidationData {
   contradictions: Contradiction[];
   gaps: InformationGap[];
@@ -124,6 +143,8 @@ export interface ValidationData {
     analysisTimestamp: string;
     cached: boolean;
   };
+  // Enhanced contradiction grouping (non-breaking addition)
+  contradictionsGroupedByType?: Record<ContradictionType, Contradiction[]>;
 }
 
 export interface DocumentReport {

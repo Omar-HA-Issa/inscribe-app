@@ -13,15 +13,29 @@ interface DocumentReference {
   chunkIndex: number;
 }
 
+type ContradictionType = 'version' | 'api' | 'config' | 'process' | 'architecture';
+type ContradictionSeverity = 'high' | 'medium' | 'low';
+
+interface ContradictionSource {
+  docName: string;
+  location: string;
+  excerpt: string;
+}
+
 interface Contradiction {
-  claim: string;
-  evidence: string;
-  severity: 'high' | 'medium' | 'low';
-  confidence: 'high' | 'medium' | 'low';
-  explanation: string;
-  claimSource: DocumentReference;
-  evidenceSource: DocumentReference;
-  impact: string;
+  id: string;
+  severity: ContradictionSeverity;
+  confidence: number;
+  type: ContradictionType;
+  description: string;
+  sources: ContradictionSource[];
+  // Legacy fields for backwards compatibility
+  claim?: string;
+  evidence?: string;
+  explanation?: string;
+  claimSource?: DocumentReference;
+  evidenceSource?: DocumentReference;
+  impact?: string;
 }
 
 interface Agreement {
@@ -73,6 +87,8 @@ interface AnalysisResult {
     analysisTimestamp: string;
     cached: boolean;
   };
+  // Enhanced contradiction grouping (non-breaking addition)
+  contradictionsGroupedByType?: Record<ContradictionType, Contradiction[]>;
 }
 
 interface Document {
@@ -548,7 +564,7 @@ export const Validator = () => {
               </h3>
               <div className="space-y-4">
                 {result.contradictions.map((contradiction, i) => (
-                  <div key={i} className="bg-card rounded-xl overflow-hidden shadow-card">
+                  <div key={contradiction.id || i} className="bg-card rounded-xl overflow-hidden shadow-card">
                     <button
                       onClick={() => setExpandedContradictions(toggle(expandedContradictions, i))}
                       className="w-full p-6 text-left hover:bg-muted/10 transition-colors"
@@ -556,11 +572,20 @@ export const Validator = () => {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                              contradiction.type === 'version' ? 'bg-blue-500/20 text-blue-400' :
+                              contradiction.type === 'api' ? 'bg-purple-500/20 text-purple-400' :
+                              contradiction.type === 'config' ? 'bg-green-500/20 text-green-400' :
+                              contradiction.type === 'process' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-orange-500/20 text-orange-400'
+                            }`}>
+                              {contradiction.type?.toUpperCase() || 'PROCESS'}
+                            </span>
                             <span className="text-xs text-muted-foreground">
-                              AI Confidence: {contradiction.confidence || 'medium'}
+                              Confidence: {(contradiction.confidence * 100).toFixed(0)}%
                             </span>
                           </div>
-                          <p className="text-foreground font-medium mb-1">{contradiction.claim}</p>
+                          <p className="text-foreground font-medium mb-1">{contradiction.description || contradiction.claim}</p>
                           <p className="text-muted-foreground text-sm">{contradiction.evidence}</p>
                         </div>
                         {expandedContradictions.has(i) ? (
@@ -574,24 +599,54 @@ export const Validator = () => {
                     {expandedContradictions.has(i) && (
                       <div className="px-6 pb-6 space-y-4 border-t border-border">
                         <div className="pt-4">
-                          <h4 className="text-sm font-semibold text-foreground mb-2">Explanation</h4>
-                          <p className="text-sm text-foreground">{contradiction.explanation}</p>
+                          <h4 className="text-sm font-semibold text-foreground mb-2">Description</h4>
+                          <p className="text-sm text-foreground">{contradiction.description}</p>
                         </div>
+
+                        {contradiction.explanation && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-foreground mb-2">Explanation</h4>
+                            <p className="text-sm text-foreground">{contradiction.explanation}</p>
+                          </div>
+                        )}
+
+                        {contradiction.impact && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-foreground mb-2">Impact</h4>
+                            <p className="text-sm text-foreground">{contradiction.impact}</p>
+                          </div>
+                        )}
 
                         <div>
-                          <h4 className="text-sm font-semibold text-foreground mb-2">Impact</h4>
-                          <p className="text-sm text-foreground">{contradiction.impact}</p>
-                        </div>
+                          <h4 className="text-sm font-semibold text-foreground mb-3">Sources</h4>
+                          <div className="space-y-3">
+                            {contradiction.sources && contradiction.sources.length > 0 ? (
+                              contradiction.sources.map((source, j) => (
+                                <div key={j} className="bg-card rounded-lg p-4 border-l-4 border-blue-500">
+                                  <p className="text-xs font-semibold text-blue-400 mb-1 uppercase">{source.docName}</p>
+                                  {source.location && (
+                                    <p className="text-xs text-muted-foreground mb-2">Location: {source.location}</p>
+                                  )}
+                                  <p className="text-xs text-muted-foreground italic line-clamp-3">{source.excerpt}</p>
+                                </div>
+                              ))
+                            ) : (
+                              <>
+                                {contradiction.claimSource && (
+                                  <div className="bg-card rounded-lg p-4 border-l-4 border-blue-500">
+                                    <p className="text-xs font-semibold text-blue-400 mb-2 uppercase">From: {contradiction.claimSource.documentName}</p>
+                                    <p className="text-xs text-muted-foreground mt-2 line-clamp-3 italic">{contradiction.claimSource.excerpt}</p>
+                                  </div>
+                                )}
 
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <div className="bg-card rounded-lg p-4 border-l-4 border-blue-500">
-                            <p className="text-xs font-semibold text-blue-400 mb-2 uppercase">From: {contradiction.claimSource.documentName}</p>
-                            <p className="text-xs text-muted-foreground mt-2 line-clamp-3 italic">{contradiction.claimSource.excerpt}</p>
-                          </div>
-
-                          <div className="bg-card rounded-lg p-4 border-l-4 border-amber-500">
-                            <p className="text-xs font-semibold text-amber-400 mb-2 uppercase">From: {contradiction.evidenceSource.documentName}</p>
-                            <p className="text-xs text-muted-foreground mt-2 line-clamp-3 italic">{contradiction.evidenceSource.excerpt}</p>
+                                {contradiction.evidenceSource && (
+                                  <div className="bg-card rounded-lg p-4 border-l-4 border-amber-500">
+                                    <p className="text-xs font-semibold text-amber-400 mb-2 uppercase">From: {contradiction.evidenceSource.documentName}</p>
+                                    <p className="text-xs text-muted-foreground mt-2 line-clamp-3 italic">{contradiction.evidenceSource.excerpt}</p>
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
