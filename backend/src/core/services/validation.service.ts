@@ -787,6 +787,98 @@ function findChunkForExcerpt(excerpt: string, chunks: any[]): number {
 }
 
 /**
+ * Validates if a document is technical (software development, DevOps, etc.)
+ * Returns: { isTechnical: boolean, reason: string, confidence: number }
+ */
+export async function validateDocumentIsTechnical(
+  documentText: string,
+  fileName: string
+): Promise<{
+  isTechnical: boolean;
+  reason: string;
+  confidence: number;
+}> {
+  // Use first 10,000 chars for classification (enough to determine topic)
+  const sampleText = documentText.substring(0, 10000);
+
+  const prompt = `You are a document classifier. Determine if this document is technical (related to software development, DevOps, programming, technical documentation, system architecture, APIs, databases, cloud infrastructure, etc.).
+
+Document: "${fileName}"
+Content sample:
+${sampleText}
+
+Analyze the document and determine:
+1. Is this document technical? (true/false)
+2. Brief reason for your classification
+3. Confidence level (0.0 to 1.0)
+
+TECHNICAL documents include:
+- Software development documentation (code, APIs, SDKs)
+- DevOps guides (deployment, CI/CD, infrastructure)
+- System architecture documents
+- Technical specifications and requirements
+- Database schemas and queries
+- Cloud infrastructure documentation
+- Programming tutorials and guides
+- Technical troubleshooting guides
+
+NON-TECHNICAL documents include:
+- Marketing materials
+- Business proposals and reports
+- Legal documents
+- Creative writing (novels, stories, poetry)
+- Personal documents (resumes, letters)
+- News articles (unless about tech)
+- Academic papers (unless CS/engineering related)
+- General knowledge documents
+
+Return ONLY valid JSON:
+{
+  "isTechnical": true|false,
+  "reason": "Brief explanation of why this is or isn't technical",
+  "confidence": 0.95
+}`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a document classifier. Analyze documents and determine if they are technical.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 200,
+      response_format: { type: 'json_object' },
+    });
+
+    const result = JSON.parse(completion.choices[0].message.content || '{}');
+
+    logger.info(`[Validator] Document classification result for ${fileName}:`, {
+      isTechnical: result.isTechnical,
+      confidence: result.confidence,
+      reason: result.reason,
+    });
+
+    return {
+      isTechnical: result.isTechnical || false,
+      reason: result.reason || 'Unable to classify document',
+      confidence: result.confidence || 0.5,
+    };
+  } catch (error) {
+    logger.error('[Validator] Error validating document type:', { error, fileName });
+    // On error, allow the document (fail open)
+    return {
+      isTechnical: true,
+      reason: 'Classification service unavailable',
+      confidence: 0.0,
+    };
+  }
+}
+
+/**
  * Clear cache for specific document(s) or all cache
  */
 export function clearAnalysisCache(documentIds?: string[]): void {

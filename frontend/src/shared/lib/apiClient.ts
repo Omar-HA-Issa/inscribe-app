@@ -452,6 +452,39 @@ export async function searchDocuments(
   }
 }
 
+/**
+ * Get upload limit status
+ * GET /api/upload/status
+ */
+export async function getUploadStatus(): Promise<{
+  success: boolean;
+  uploads: {
+    remaining: number;
+    total: number;
+    used: number;
+    resetDate: string;
+  };
+}> {
+  try {
+    const response = await fetch(`${API_CONFIG.baseUrl}/api/upload/status`, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearAuthTokens();
+        throw new ApiError(401, 'Session expired. Please login again.');
+      }
+      throw new ApiError(response.status, 'Failed to fetch upload status');
+    }
+
+    return response.json();
+  } catch (error) {
+    logError('getUploadStatus', error, isDevelopment);
+    throw error;
+  }
+}
+
 // =====================
 // Generic API Client (deprecated - use api.ts instead)
 // =====================

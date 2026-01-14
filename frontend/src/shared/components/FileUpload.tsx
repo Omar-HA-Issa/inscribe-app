@@ -7,13 +7,15 @@
  */
 
 import { useCallback, useEffect, useReducer, useState } from "react";
-import { FileText, Upload, ArrowLeft, Clock, Search, Trash2 } from "lucide-react";
+import { FileText, Upload, ArrowLeft, Clock, Search, Trash2, AlertCircle } from "lucide-react";
 import { cn } from "@/shared/lib/utils.ts";
 import { useAsync } from "@/shared/hooks/useAsync";
 import { useDocumentDelete } from "@/shared/hooks/useFileUpload";
+import { useUploadStatus } from "@/shared/hooks/useUploadStatus";
 import { fetchUserDocuments } from "@/shared/lib/apiClient.ts";
 import { validateFile, formatFileSize, formatDate } from "@/shared/lib/validation";
 import { ApiError } from "@/shared/lib/errorHandler";
+import InscribeLogo from "@/shared/assets/images/Inscribe_Logo.png";
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -114,6 +116,9 @@ export const FileUpload = ({
   // Use custom hook for document deletion
   const { deleteDocument, isDeleting } = useDocumentDelete();
 
+  // Use custom hook for upload status
+  const { uploadStatus, refetch: refetchStatus } = useUploadStatus(true);
+
   // Update library state when documents are fetched
   useEffect(() => {
     if (fetchStatus === 'success' && documentsData) {
@@ -139,6 +144,14 @@ export const FileUpload = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showLibrary, libraryState.documents.length]);
 
+  // Refetch upload status when returning to upload view
+  useEffect(() => {
+    if (!showLibrary && uploadStatus) {
+      refetchStatus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showLibrary]);
+
   /**
    * Handles file drop
    */
@@ -146,6 +159,12 @@ export const FileUpload = ({
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
+
+      // Check upload limit
+      if (uploadStatus && uploadStatus.remaining === 0) {
+        setUploadError('Weekly upload limit reached. Please wait until the limit resets.');
+        return;
+      }
 
       const file = e.dataTransfer.files[0];
       if (!file) return;
@@ -159,7 +178,7 @@ export const FileUpload = ({
       setUploadError(null);
       onFileSelect(file);
     },
-    [onFileSelect]
+    [onFileSelect, uploadStatus]
   );
 
   /**
@@ -182,6 +201,13 @@ export const FileUpload = ({
    */
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Check upload limit
+      if (uploadStatus && uploadStatus.remaining === 0) {
+        setUploadError('Weekly upload limit reached. Please wait until the limit resets.');
+        e.target.value = '';
+        return;
+      }
+
       const file = e.target.files?.[0];
       if (!file) return;
 
@@ -194,8 +220,10 @@ export const FileUpload = ({
 
       setUploadError(null);
       onFileSelect(file);
+      // Clear the input so the same file can be selected again
+      e.target.value = '';
     },
-    [onFileSelect]
+    [onFileSelect, uploadStatus]
   );
 
   /**
@@ -265,6 +293,55 @@ export const FileUpload = ({
     doc.title.toLowerCase().includes(libraryState.searchQuery.toLowerCase())
   );
 
+  /**
+   * Renders upload limit status banner
+   */
+  const renderUploadStatus = () => {
+    if (!uploadStatus) return null;
+
+    const { remaining, total, used, resetDate } = uploadStatus;
+    const isLimitReached = remaining === 0;
+    const isNearLimit = remaining <= 2 && remaining > 0;
+
+    const resetDateFormatted = new Date(resetDate).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    return (
+      <div
+        className={`mb-6 px-4 py-3 rounded-lg border ${
+          isLimitReached
+            ? 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
+            : isNearLimit
+            ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600 dark:text-yellow-400'
+            : 'bg-muted border-border text-muted-foreground'
+        }`}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex items-center gap-3">
+          {(isLimitReached || isNearLimit) && (
+            <AlertCircle className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+          )}
+          <div className="flex-1">
+            <p className="text-sm font-medium">
+              {isLimitReached ? (
+                <>Upload limit reached ({used}/{total})</>
+              ) : (
+                <>{remaining} upload{remaining !== 1 ? 's' : ''} remaining this week ({used}/{total} used)</>
+              )}
+            </p>
+            <p className="text-xs mt-1 opacity-80">
+              Resets on {resetDateFormatted}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-6 py-12 animate-fade-in relative"
@@ -288,17 +365,30 @@ export const FileUpload = ({
       )}
 
       <div className="text-center mb-12">
-        <h1 className="text-5xl font-semibold tracking-tight mb-4"
-            style={{textShadow: '0 0 12px rgba(211,211,211,0.3)'}}>
-          Inscribe
-        </h1>
+        <div className="flex items-center justify-center gap-4 mb-4">
+          <img
+            src={InscribeLogo}
+            alt="Inscribe Logo"
+            className="w-24 h-24"
+          />
+          <h1 className="text-5xl font-semibold tracking-tight"
+              style={{textShadow: '0 0 12px rgba(211,211,211,0.3)'}}>
+            Inscribe
+          </h1>
+        </div>
         <p className="text-muted-foreground text-lg">
-          Upload a document or select from your library to get started
+          Upload a technical document or select from your library to get started
+        </p>
+        <p className="text-xs text-muted-foreground mt-2">
+          Documents should be related to software development, DevOps, or technical documentation
         </p>
       </div>
 
       {!showLibrary ? (
           <div className="w-full max-w-5xl">
+            {/* Upload Status Banner */}
+            {renderUploadStatus()}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Upload New Document */}
               <div
@@ -308,17 +398,20 @@ export const FileUpload = ({
                   className={cn(
                       "relative p-16 rounded-2xl transition-all cursor-pointer h-full",
                       "bg-card shadow-card hover:shadow-hover",
-                      isDragging ? "shadow-glow" : ""
+                      isDragging ? "shadow-glow" : "",
+                      uploadStatus?.remaining === 0 ? "opacity-50 cursor-not-allowed" : ""
                   )}
                   role="button"
                   tabIndex={0}
                   aria-label="Drop area for file upload or click to browse"
+                  aria-disabled={uploadStatus?.remaining === 0}
               >
                 <input
                     type="file"
                     accept=".pdf,.txt,.docx"
                     onChange={handleFileInput}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    disabled={uploadStatus?.remaining === 0}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                     aria-label="Select file to upload"
                 />
 

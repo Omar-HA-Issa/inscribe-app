@@ -10,6 +10,68 @@ import { logger } from '../../shared/utils/logger';
 const router = Router();
 
 /**
+ * POST /api/validation/check-cache
+ * Check if cached validation results exist
+ */
+router.post('/check-cache', requireAuth, async (req: Request, res: Response, next) => {
+  try {
+    const { documentId, validationType, compareDocumentIds } = req.body;
+    const userId = (req as any).authUserId;
+
+    if (!documentId || !validationType) {
+      throw new BadRequestError('Document ID and validation type are required');
+    }
+
+    validateUUID(documentId, 'documentId');
+
+    if (!userId) {
+      throw new UnauthorizedError('User not authenticated');
+    }
+
+    const sb = adminClient();
+
+    if (validationType === 'within') {
+      const { data: cachedValidation, error } = await sb
+        .from('document_validation')
+        .select('id, created_at')
+        .eq('document_id', documentId)
+        .eq('validation_type', 'within')
+        .eq('user_id', userId)
+        .single();
+
+      return res.json({ hasCached: !error && !!cachedValidation });
+    } else if (validationType === 'across') {
+      if (!compareDocumentIds || !Array.isArray(compareDocumentIds)) {
+        throw new BadRequestError('Compare document IDs array is required for across validation');
+      }
+
+      const { data: cachedValidations, error } = await sb
+        .from('document_validation')
+        .select('id, compared_document_ids')
+        .eq('document_id', documentId)
+        .eq('validation_type', 'across')
+        .eq('user_id', userId);
+
+      if (!error && cachedValidations && cachedValidations.length > 0) {
+        const sortedCompareIds = [...compareDocumentIds].sort();
+        const match = cachedValidations.find(validation => {
+          const storedCompareIds = (validation.compared_document_ids || []).sort();
+          return JSON.stringify(sortedCompareIds) === JSON.stringify(storedCompareIds);
+        });
+
+        return res.json({ hasCached: !!match });
+      }
+
+      return res.json({ hasCached: false });
+    }
+
+    return res.json({ hasCached: false });
+  } catch (error: any) {
+    next(error);
+  }
+});
+
+/**
  * POST /api/validation/analyze/within
  * Detect validation issues within a single document
  */
