@@ -16,6 +16,11 @@ import ForgotPassword from "../features/auth/pages/ForgotPassword.tsx";
 import ResetPassword from "../features/auth/pages/ResetPassword.tsx";
 import AuthConfirm from '../features/auth/pages/AuthConfirm.tsx';
 
+// Legal Pages
+import Terms from '../features/pages/legal/Terms.tsx';
+import Privacy from '../features/pages/legal/Privacy.tsx';
+import Contact from '../features/pages/legal/Contact.tsx';
+
 // Document Layout & Pages
 import DocumentLayout from '../features/pages/documents/DocumentLayout.tsx';
 import { Summary } from '../features/pages/documents/Summary.tsx';
@@ -56,6 +61,11 @@ const App = () => (
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/auth/confirm" element={<AuthConfirm />} />
+
+            {/* Legal Pages */}
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/contact" element={<Contact />} />
 
             {/* Protected routes - require authentication */}
             <Route

@@ -189,6 +189,24 @@ export default function Signup() {
             </motion.div>
           )}
 
+          {/* Terms of Service Agreement */}
+          <div className="text-center text-sm text-muted-foreground">
+            By creating an account, you agree to our{" "}
+            <Link
+              to="/terms"
+              className="text-foreground hover:text-foreground/80 font-medium transition-colors underline"
+            >
+              Terms of Service
+            </Link>
+            {" "}and{" "}
+            <Link
+              to="/privacy"
+              className="text-foreground hover:text-foreground/80 font-medium transition-colors underline"
+            >
+              Privacy Policy
+            </Link>
+          </div>
+
           <Button
             type="submit"
             disabled={isLoading || !allRequirementsMet}

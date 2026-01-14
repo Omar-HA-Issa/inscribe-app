@@ -53,93 +53,93 @@ export default function Login() {
         transition={{ duration: 0.6 }}
         className="flex-1 flex items-center justify-center px-12 py-12"
       >
-        <div className="w-full max-w-md space-y-8">
-          {/* Logo */}
-          <div className="space-y-2">
-            <h1
-              className="text-3xl font-semibold tracking-tight text-foreground"
-              style={{ textShadow: '0 0 12px rgba(211,211,211,0.4)' }}
-            >
-              Inscribe
-            </h1>
-            <p className="text-muted-foreground">Sign in to continue your journey</p>
-          </div>
-
-          {/* Login Form */}
-          <form onSubmit={handleLogin} className="space-y-6 mt-12">
+          <div className="w-full max-w-md space-y-8">
+            {/* Logo */}
             <div className="space-y-2">
-              <Label
-                htmlFor="email"
-                className="text-sm font-medium text-muted-foreground"
+              <h1
+                className="text-3xl font-semibold tracking-tight text-foreground"
+                style={{ textShadow: '0 0 12px rgba(211,211,211,0.4)' }}
               >
-                Email Address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isLoading}
-                className="h-12 bg-background/50 border-border/50 focus:border-border transition-all placeholder:text-muted-foreground/50"
-              />
+                Inscribe
+              </h1>
+              <p className="text-muted-foreground">Sign in to continue your journey</p>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
+            {/* Login Form */}
+            <form onSubmit={handleLogin} className="space-y-6 mt-12">
+              <div className="space-y-2">
                 <Label
-                  htmlFor="password"
+                  htmlFor="email"
                   className="text-sm font-medium text-muted-foreground"
                 >
-                  Password
+                  Email Address
                 </Label>
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Forgot password?
-                </Link>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  className="h-12 bg-background/50 border-border/50 focus:border-border transition-all placeholder:text-muted-foreground/50"
+                />
               </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label
+                    htmlFor="password"
+                    className="text-sm font-medium text-muted-foreground"
+                  >
+                    Password
+                  </Label>
+                  <Link
+                    to="/forgot-password"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  className="h-12 bg-background/50 border-border/50 focus:border-border transition-all"
+                />
+              </div>
+
+              <Button
+                type="submit"
                 disabled={isLoading}
-                className="h-12 bg-background/50 border-border/50 focus:border-border transition-all"
-              />
+                className="w-full h-12 bg-foreground/10 hover:bg-foreground/20 text-foreground border-0 transition-all hover:shadow-glow"
+              >
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
+                    Signing in...
+                  </span>
+                ) : (
+                  "Sign in"
+                )}
+              </Button>
+            </form>
+
+            {/* Sign up link */}
+            <div className="text-center text-sm">
+              <span className="text-muted-foreground">Don't have an account? </span>
+              <Link
+                to="/signup"
+                className="text-foreground hover:text-foreground/80 font-medium transition-colors"
+              >
+                Sign up
+              </Link>
             </div>
-
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 bg-foreground/10 hover:bg-foreground/20 text-foreground border-0 transition-all hover:shadow-glow"
-            >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
-                  Signing in...
-                </span>
-              ) : (
-                "Sign in"
-              )}
-            </Button>
-          </form>
-
-          {/* Sign up link */}
-          <div className="text-center text-sm">
-            <span className="text-muted-foreground">Don't have an account? </span>
-            <Link
-              to="/signup"
-              className="text-foreground hover:text-foreground/80 font-medium transition-colors"
-            >
-              Sign up
-            </Link>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
 
       {/* Right Side - Lottie Animation */}
       <motion.div

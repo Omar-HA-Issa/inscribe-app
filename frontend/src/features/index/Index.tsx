@@ -8,6 +8,7 @@ import {useToast} from "@/shared/hooks/use-toast.ts";
 import {useAuth} from "../auth/context/AuthContext.tsx";
 import {useUploadStatus} from "@/shared/hooks/useUploadStatus";
 import {AlertCircle} from "lucide-react";
+import {Footer} from "@/shared/components/Footer";
 
 const Index = () => {
   const [showUploadPage, setShowUploadPage] = useState(true);
@@ -131,62 +132,66 @@ const Index = () => {
   }
 
   return (
-    <>
-      <FileUpload
-        onFileSelect={handleFileSelect}
-        hasExistingDocument={!!lastDocumentId}
-        onBackToDocument={lastDocumentId ? handleBackToDocument : undefined}
-        onSelectExistingDocument={handleSelectExistingDocument}
-      />
-
-      {pendingFile && (
-        <UploadConfirmation
-          file={pendingFile}
-          onConfirm={handleConfirmUpload}
-          onCancel={handleCancelUpload}
-          uploadStatus={uploadStatus}
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1">
+        <FileUpload
+          onFileSelect={handleFileSelect}
+          hasExistingDocument={!!lastDocumentId}
+          onBackToDocument={lastDocumentId ? handleBackToDocument : undefined}
+          onSelectExistingDocument={handleSelectExistingDocument}
         />
-      )}
 
-      {/* Non-Technical Document Popup */}
-      {nonTechnicalError && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-md"
-            onClick={() => setNonTechnicalError(null)}
-            aria-hidden="true"
+        {pendingFile && (
+          <UploadConfirmation
+            file={pendingFile}
+            onConfirm={handleConfirmUpload}
+            onCancel={handleCancelUpload}
+            uploadStatus={uploadStatus}
           />
+        )}
 
-          {/* Centered Popup */}
-          <div
-            className="relative bg-card rounded-2xl shadow-xl max-w-md w-full p-6 animate-slide-in"
-            role="alert"
-            aria-live="assertive"
-          >
-            <div className="flex flex-col items-center text-center gap-4">
-              <div className="p-3 bg-yellow-500/10 rounded-full">
-                <AlertCircle className="w-10 h-10 text-yellow-500" aria-hidden="true" />
+        {/* Non-Technical Document Popup */}
+        {nonTechnicalError && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/30 backdrop-blur-md"
+              onClick={() => setNonTechnicalError(null)}
+              aria-hidden="true"
+            />
+
+            {/* Centered Popup */}
+            <div
+              className="relative bg-card rounded-2xl shadow-xl max-w-md w-full p-6 animate-slide-in"
+              role="alert"
+              aria-live="assertive"
+            >
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="p-3 bg-yellow-500/10 rounded-full">
+                  <AlertCircle className="w-10 h-10 text-yellow-500" aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-foreground mb-2">
+                    Document is not technical
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    This system is designed for technical documents related to software development, DevOps, and system architecture.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setNonTechnicalError(null)}
+                  className="w-full px-4 py-2.5 rounded-lg font-medium bg-muted hover:bg-muted/80 text-foreground transition-all"
+                >
+                  Got it
+                </button>
               </div>
-              <div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">
-                  Document is not technical
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  This system is designed for technical documents related to software development, DevOps, and system architecture.
-                </p>
-              </div>
-              <button
-                onClick={() => setNonTechnicalError(null)}
-                className="w-full px-4 py-2.5 rounded-lg font-medium bg-muted hover:bg-muted/80 text-foreground transition-all"
-              >
-                Got it
-              </button>
             </div>
           </div>
-        </div>
-      )}
-    </>
+        )}
+      </div>
+
+      <Footer />
+    </div>
   );
 };
 
