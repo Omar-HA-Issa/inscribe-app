@@ -29,7 +29,7 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs = [] }) => {
     {
       id: "1",
       role: "assistant",
-      content: "Hello! I'm Inscribe AI. Ask me anything about your documents.",
+      content: "Hello! I'm Scribbly. Ask me anything about your documents.",
       timestamp: new Date(),
     },
   ]);

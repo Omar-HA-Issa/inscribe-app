@@ -58,6 +58,7 @@ const config: Config = {
           cyan: "hsl(var(--chart-cyan))",
           azure: "hsl(var(--chart-azure))",
           magenta: "hsl(var(--chart-magenta))",
+          "dark-blue": "hsl(var(--chart-dark-blue))",
           light: "hsl(var(--chart-light))",
           mid: "hsl(var(--chart-mid))",
           dark: "hsl(var(--chart-dark))",

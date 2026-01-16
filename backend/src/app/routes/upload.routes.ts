@@ -7,9 +7,11 @@ import { ChunkingService } from "../../core/services/chunking.service";
 import { FileParserService } from "../../core/services/fileParser.service";
 import { adminClient } from "../../core/clients/supabaseClient";
 import { validateUUID } from "../middleware/validation";
-import { BadRequestError, UnauthorizedError, ConflictError, InternalServerError } from "../../shared/errors";
+import { BadRequestError, UnauthorizedError, ConflictError, InternalServerError, TooManyRequestsError } from "../../shared/errors";
 import { rateLimitMiddleware } from "../middleware/rateLimiter";
 import { logger } from "../../shared/utils/logger";
+import { checkUploadLimit, getRemainingUploads } from "../../core/services/uploadLimit.service";
+import { validateDocumentIsTechnical } from "../../core/services/validation.service";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -78,25 +80,25 @@ async function embedInBatches(
   return out;
 }
 
-/** Parse file and chunk the text */
-async function normalizeChunksFromFile(
-  file: Express.Multer.File
-): Promise<Chunk[]> {
-  // Step 1: Save buffer to temp file (FileParserService needs a file path)
+/** Extract text from file without chunking */
+async function extractTextFromFile(file: Express.Multer.File): Promise<string> {
   const tempDir = os.tmpdir();
   const tempFilePath = path.join(
     tempDir,
-    `upload-${Date.now()}-${file.originalname}`
+    `extract-${Date.now()}-${file.originalname}`
   );
 
   try {
     await fs.writeFile(tempFilePath, file.buffer);
 
-    // Step 2: Parse the file to extract text
+    // Parse the file to extract text
     const text = await FileParserService.parseFile(
       tempFilePath,
       file.mimetype
     );
+
+    // Clean up temp file
+    await fs.unlink(tempFilePath);
 
     if (!text || text.trim().length === 0) {
       throw new Error("No text content found in file");
@@ -109,26 +111,29 @@ async function normalizeChunksFromFile(
       `📄 Extracted ${cleanText.length} characters from ${file.originalname}`
     );
 
-    // Step 3: Chunk the text
-    const chunker = new ChunkingService();
-    const textChunks = await chunker.chunkText(cleanText);
-
-    // Step 4: Convert to our Chunk format
-    const chunks: Chunk[] = textChunks.map((chunk) => ({
-      index: chunk.chunkIndex,
-      text: chunk.content,
-      metadata: { tokenCount: chunk.tokenCount },
-    }));
-
-    return chunks;
-  } finally {
-    // Clean up temp file
+    return cleanText;
+  } catch (error) {
+    // Clean up temp file on error
     try {
       await fs.unlink(tempFilePath);
-    } catch (err) {
-      logger.error("Failed to delete temp file:", { error: err });
-    }
+    } catch {}
+    throw error;
   }
+}
+
+/** Chunk text content */
+async function chunkTextContent(text: string): Promise<Chunk[]> {
+  const chunker = new ChunkingService();
+  const textChunks = await chunker.chunkText(text);
+
+  // Convert to our Chunk format
+  const chunks: Chunk[] = textChunks.map((chunk) => ({
+    index: chunk.chunkIndex,
+    text: chunk.content,
+    metadata: { tokenCount: chunk.tokenCount },
+  }));
+
+  return chunks;
 }
 
 router.post(
@@ -158,6 +163,23 @@ router.post(
         throw new UnauthorizedError("User not authenticated");
       }
 
+      const sb = adminClient();
+
+      // Check upload limit before processing file
+      const uploadLimitStatus = await checkUploadLimit(sb, userId);
+      if (!uploadLimitStatus.allowed) {
+        const resetDateFormatted = uploadLimitStatus.resetDate.toISOString().split('T')[0];
+        logger.warn(`Upload limit exceeded for user ${userId}`, {
+          count: uploadLimitStatus.count,
+          limit: uploadLimitStatus.limit,
+          resetDate: resetDateFormatted,
+        });
+
+        throw new TooManyRequestsError(
+          `Weekly upload limit reached. You have uploaded ${uploadLimitStatus.count}/${uploadLimitStatus.limit} documents this week. Limit resets on ${resetDateFormatted}.`
+        );
+      }
+
       const { originalname, mimetype, size, buffer } = req.file;
 
       // Additional validation
@@ -168,8 +190,6 @@ router.post(
       logger.info(
         `\n--- Upload received: ${originalname} (${size} bytes, ${mimetype}) ---`
       );
-
-      const sb = adminClient();
 
       // ✅ Compute hash of file contents
       const fileHash = crypto
@@ -198,9 +218,37 @@ router.post(
         throw new ConflictError(`This document already exists in your library as "${existingDoc.file_name}".`);
       }
 
-      // Only do heavy work if not a duplicate
+      // Extract text content first
+      logger.info(`Extracting text from: ${originalname}`);
+      const documentText = await extractTextFromFile(req.file);
+
+      // Validate document is technical BEFORE heavy processing
+      logger.info(`Validating document type for: ${originalname}`);
+      const validationResult = await validateDocumentIsTechnical(documentText, originalname);
+
+      logger.info('Document type validation result:', {
+        fileName: originalname,
+        isTechnical: validationResult.isTechnical,
+        confidence: validationResult.confidence,
+        reason: validationResult.reason,
+      });
+
+      // Reject non-technical documents (with high confidence)
+      if (!validationResult.isTechnical && validationResult.confidence > 0.7) {
+        logger.warn(`Non-technical document rejected: ${originalname}`, {
+          reason: validationResult.reason,
+          confidence: validationResult.confidence,
+        });
+
+        throw new BadRequestError(
+          `This document doesn't appear to be technical documentation. ${validationResult.reason}. ` +
+          `This system is designed for technical documents related to software development, DevOps, and system architecture.`
+        );
+      }
+
+      // Only do heavy work if document is technical and not a duplicate
       console.time("chunking");
-      const chunks: Chunk[] = await normalizeChunksFromFile(req.file);
+      const chunks: Chunk[] = await chunkTextContent(documentText);
       console.timeEnd("chunking");
 
       if (!chunks.length) {
@@ -305,5 +353,30 @@ router.post(
     }
   }
 );
+
+// GET /upload/status - Get upload limit status for current user
+router.get("/upload/status", async (req: Request, res, next) => {
+  try {
+    const userId: string | null = req.authUserId ?? null;
+    if (!userId) {
+      throw new UnauthorizedError("User not authenticated");
+    }
+
+    const sb = adminClient();
+    const status = await getRemainingUploads(sb, userId);
+
+    return res.json({
+      success: true,
+      uploads: {
+        remaining: status.remaining,
+        total: status.total,
+        used: status.used,
+        resetDate: status.resetDate.toISOString(),
+      },
+    });
+  } catch (err: any) {
+    next(err);
+  }
+});
 
 export default router;

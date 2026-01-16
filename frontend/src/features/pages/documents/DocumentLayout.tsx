@@ -7,6 +7,7 @@ import { Chat } from "../chat/Chat.tsx";
 import { Sidebar } from "../chat/Sidebar.tsx";
 import { useAuth } from "../../auth/context/AuthContext.tsx";
 import { useToast } from "@/shared/hooks/use-toast.ts";
+import { Footer } from "@/shared/components/Footer";
 
 interface Document {
   id: string;
@@ -104,6 +105,8 @@ export default function DocumentLayout() {
           <Sidebar selectedDocs={selectedDocs} setSelectedDocs={setSelectedDocs} />
           <Chat selectedDocs={selectedDocs} />
         </div>
+
+        <Footer />
       </div>
     );
   }
@@ -124,6 +127,8 @@ export default function DocumentLayout() {
       <main className="px-6 pt-28 pb-6">
         <Outlet />
       </main>
+
+      <Footer />
     </div>
   );
 }

@@ -94,18 +94,38 @@ export function useFileUpload() {
           } else {
             let errorMessage = 'Upload failed';
 
-            // Handle duplicate document error
-            if (xhr.status === 409) {
-              try {
-                const errorData = JSON.parse(xhr.responseText);
-                if (errorData.code === 'DUPLICATE_DOCUMENT') {
-                  errorMessage = errorData.message || 'This document already exists in your library.';
-                }
-              } catch {
-                // Use default error message
+            // Try to parse error response from backend
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+
+              // Handle different error response formats
+              if (errorData.message) {
+                errorMessage = errorData.message;
+              } else if (errorData.error) {
+                errorMessage = errorData.error;
+              } else if (errorData.userMessage) {
+                errorMessage = errorData.userMessage;
               }
-            } else if (xhr.status === 401) {
-              errorMessage = 'Not authenticated. Please login again.';
+
+              // Handle specific error codes
+              if (xhr.status === 409) {
+                errorMessage = errorData.message || 'This document already exists in your library.';
+              } else if (xhr.status === 401) {
+                errorMessage = 'Not authenticated. Please login again.';
+              } else if (xhr.status === 400) {
+                errorMessage = errorData.message || 'Invalid file. Please check the file type and size.';
+              }
+            } catch {
+              // If JSON parsing fails, use status-based default
+              if (xhr.status === 401) {
+                errorMessage = 'Not authenticated. Please login again.';
+              } else if (xhr.status === 409) {
+                errorMessage = 'This document already exists in your library.';
+              } else if (xhr.status === 400) {
+                errorMessage = 'Invalid file. Please check the file type and size.';
+              } else {
+                errorMessage = `Upload failed with status ${xhr.status}`;
+              }
             }
 
             reject(new ApiError(xhr.status, errorMessage));

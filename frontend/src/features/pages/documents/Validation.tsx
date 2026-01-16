@@ -13,15 +13,29 @@ interface DocumentReference {
   chunkIndex: number;
 }
 
+type ContradictionType = 'version' | 'api' | 'config' | 'process' | 'architecture';
+type ContradictionSeverity = 'high' | 'medium' | 'low';
+
+interface ContradictionSource {
+  docName: string;
+  location: string;
+  excerpt: string;
+}
+
 interface Contradiction {
-  claim: string;
-  evidence: string;
-  severity: 'high' | 'medium' | 'low';
-  confidence: 'high' | 'medium' | 'low';
-  explanation: string;
-  claimSource: DocumentReference;
-  evidenceSource: DocumentReference;
-  impact: string;
+  id: string;
+  severity: ContradictionSeverity;
+  confidence: number;
+  type: ContradictionType;
+  description: string;
+  sources: ContradictionSource[];
+  // Legacy fields for backwards compatibility
+  claim?: string;
+  evidence?: string;
+  explanation?: string;
+  claimSource?: DocumentReference;
+  evidenceSource?: DocumentReference;
+  impact?: string;
 }
 
 interface Agreement {
@@ -73,6 +87,8 @@ interface AnalysisResult {
     analysisTimestamp: string;
     cached: boolean;
   };
+  // Enhanced contradiction grouping (non-breaking addition)
+  contradictionsGroupedByType?: Record<ContradictionType, Contradiction[]>;
 }
 
 interface Document {
@@ -95,6 +111,7 @@ export const Validator = () => {
   const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [hasCachedAnalysis, setHasCachedAnalysis] = useState(false);
 
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -125,6 +142,57 @@ export const Validator = () => {
 
     if (currentDocumentId) fetchDocuments();
   }, [currentDocumentId]);
+
+  // Check for cached analysis when configuration changes
+  useEffect(() => {
+    const checkCachedAnalysis = async () => {
+      if (!analysisMode || !currentDocumentId) {
+        setHasCachedAnalysis(false);
+        return;
+      }
+
+      // For 'across' mode, need at least one selected document
+      if (analysisMode === 'across' && selectedDocs.length === 0) {
+        setHasCachedAnalysis(false);
+        return;
+      }
+
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const token = localStorage.getItem('access_token');
+
+        const body: any = {
+          documentId: currentDocumentId,
+          validationType: analysisMode,
+        };
+
+        if (analysisMode === 'across') {
+          body.compareDocumentIds = selectedDocs;
+        }
+
+        const response = await fetch(`${apiUrl}/api/contradictions/check-cache`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setHasCachedAnalysis(data.hasCached || false);
+        } else {
+          setHasCachedAnalysis(false);
+        }
+      } catch (err) {
+        console.error('Error checking cache:', err);
+        setHasCachedAnalysis(false);
+      }
+    };
+
+    checkCachedAnalysis();
+  }, [analysisMode, selectedDocs, currentDocumentId]);
 
   const handleAnalyze = async (): Promise<void> => {
     if (!currentDocumentId) {
@@ -383,10 +451,10 @@ export const Validator = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Analyzing...
+                  {hasCachedAnalysis ? 'Loading...' : 'Analyzing...'}
                 </span>
               ) : (
-                'Start Analysis'
+                hasCachedAnalysis ? 'Load Analysis' : 'Start Analysis'
               )}
             </button>
           )}
@@ -401,6 +469,7 @@ export const Validator = () => {
               setAnalysisMode(null);
               setSelectedDocs([]);
               setError(null);
+              setHasCachedAnalysis(false);
             }}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -515,7 +584,7 @@ export const Validator = () => {
               <div className={`grid gap-3 text-sm border-t border-border pt-4 ${analysisMode === 'across' ? 'grid-cols-3' : 'grid-cols-2'}`}>
                 <div>
                   <span className="text-muted-foreground">Issues Found:</span>
-                  <p className="text-lg font-semibold text-foreground">{(result.contradictions?.length || 0) + (result.gaps?.length || 0)}</p>
+                  <p className="text-lg font-semibold text-foreground">{(result.contradictions?.length || 0) + (result.gaps?.length || 0) + (result.riskAssessment?.criticalItems?.length || 0)}</p>
                 </div>
                 {analysisMode === 'across' && (
                   <div>
@@ -548,7 +617,7 @@ export const Validator = () => {
               </h3>
               <div className="space-y-4">
                 {result.contradictions.map((contradiction, i) => (
-                  <div key={i} className="bg-card rounded-xl overflow-hidden shadow-card">
+                  <div key={contradiction.id || i} className="bg-card rounded-xl overflow-hidden shadow-card">
                     <button
                       onClick={() => setExpandedContradictions(toggle(expandedContradictions, i))}
                       className="w-full p-6 text-left hover:bg-muted/10 transition-colors"
@@ -556,11 +625,20 @@ export const Validator = () => {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                              contradiction.type === 'version' ? 'bg-blue-500/20 text-blue-400' :
+                              contradiction.type === 'api' ? 'bg-purple-500/20 text-purple-400' :
+                              contradiction.type === 'config' ? 'bg-green-500/20 text-green-400' :
+                              contradiction.type === 'process' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-orange-500/20 text-orange-400'
+                            }`}>
+                              {contradiction.type?.toUpperCase() || 'PROCESS'}
+                            </span>
                             <span className="text-xs text-muted-foreground">
-                              AI Confidence: {contradiction.confidence || 'medium'}
+                              Confidence: {(contradiction.confidence * 100).toFixed(0)}%
                             </span>
                           </div>
-                          <p className="text-foreground font-medium mb-1">{contradiction.claim}</p>
+                          <p className="text-foreground font-medium mb-1">{contradiction.description || contradiction.claim}</p>
                           <p className="text-muted-foreground text-sm">{contradiction.evidence}</p>
                         </div>
                         {expandedContradictions.has(i) ? (
@@ -574,24 +652,54 @@ export const Validator = () => {
                     {expandedContradictions.has(i) && (
                       <div className="px-6 pb-6 space-y-4 border-t border-border">
                         <div className="pt-4">
-                          <h4 className="text-sm font-semibold text-foreground mb-2">Explanation</h4>
-                          <p className="text-sm text-foreground">{contradiction.explanation}</p>
+                          <h4 className="text-sm font-semibold text-foreground mb-2">Description</h4>
+                          <p className="text-sm text-foreground">{contradiction.description}</p>
                         </div>
+
+                        {contradiction.explanation && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-foreground mb-2">Explanation</h4>
+                            <p className="text-sm text-foreground">{contradiction.explanation}</p>
+                          </div>
+                        )}
+
+                        {contradiction.impact && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-foreground mb-2">Impact</h4>
+                            <p className="text-sm text-foreground">{contradiction.impact}</p>
+                          </div>
+                        )}
 
                         <div>
-                          <h4 className="text-sm font-semibold text-foreground mb-2">Impact</h4>
-                          <p className="text-sm text-foreground">{contradiction.impact}</p>
-                        </div>
+                          <h4 className="text-sm font-semibold text-foreground mb-3">Sources</h4>
+                          <div className="space-y-3">
+                            {contradiction.sources && contradiction.sources.length > 0 ? (
+                              contradiction.sources.map((source, j) => (
+                                <div key={j} className="bg-card rounded-lg p-4 border-l-4 border-blue-500">
+                                  <p className="text-xs font-semibold text-blue-400 mb-1 uppercase">{source.docName}</p>
+                                  {source.location && (
+                                    <p className="text-xs text-muted-foreground mb-2">Location: {source.location}</p>
+                                  )}
+                                  <p className="text-xs text-muted-foreground italic line-clamp-3">{source.excerpt}</p>
+                                </div>
+                              ))
+                            ) : (
+                              <>
+                                {contradiction.claimSource && (
+                                  <div className="bg-card rounded-lg p-4 border-l-4 border-blue-500">
+                                    <p className="text-xs font-semibold text-blue-400 mb-2 uppercase">From: {contradiction.claimSource.documentName}</p>
+                                    <p className="text-xs text-muted-foreground mt-2 line-clamp-3 italic">{contradiction.claimSource.excerpt}</p>
+                                  </div>
+                                )}
 
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <div className="bg-card rounded-lg p-4 border-l-4 border-blue-500">
-                            <p className="text-xs font-semibold text-blue-400 mb-2 uppercase">From: {contradiction.claimSource.documentName}</p>
-                            <p className="text-xs text-muted-foreground mt-2 line-clamp-3 italic">{contradiction.claimSource.excerpt}</p>
-                          </div>
-
-                          <div className="bg-card rounded-lg p-4 border-l-4 border-amber-500">
-                            <p className="text-xs font-semibold text-amber-400 mb-2 uppercase">From: {contradiction.evidenceSource.documentName}</p>
-                            <p className="text-xs text-muted-foreground mt-2 line-clamp-3 italic">{contradiction.evidenceSource.excerpt}</p>
+                                {contradiction.evidenceSource && (
+                                  <div className="bg-card rounded-lg p-4 border-l-4 border-amber-500">
+                                    <p className="text-xs font-semibold text-amber-400 mb-2 uppercase">From: {contradiction.evidenceSource.documentName}</p>
+                                    <p className="text-xs text-muted-foreground mt-2 line-clamp-3 italic">{contradiction.evidenceSource.excerpt}</p>
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

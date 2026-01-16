@@ -160,45 +160,134 @@ router.get("/documents/:id/report", async (req, res, next) => {
       logger.warn('Error fetching chat messages:', { error: err });
     }
 
-    // 5. Get validation data if available
-    let validationData = null;
+    // 5. Get validation data if available (fetch both within and across types if they exist)
+    let validationData: any = null;
+    let withinValidation: any = null;
+    let acrossValidation: any = null;
+
     try {
-      const { data: contradictions, error: contradictionsError } = await sb
+      // Fetch both validation types
+      const { data: withinData, error: withinError } = await sb
         .from('document_validation')
         .select('*')
         .eq('document_id', documentId)
+        .eq('user_id', userId)
+        .eq('validation_type', 'within')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (contradictionsError) {
-        logger.warn('Error fetching validation data:', { error: contradictionsError });
+      const { data: acrossData, error: acrossError } = await sb
+        .from('document_validation')
+        .select('*')
+        .eq('document_id', documentId)
+        .eq('user_id', userId)
+        .eq('validation_type', 'across')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (withinError) {
+        logger.error('Error fetching within validation data:', {
+          error: withinError,
+          documentId,
+          userId,
+          message: (withinError as any)?.message
+        });
       }
 
-      if (!contradictionsError && contradictions) {
-        logger.info('Found validation data for report:', contradictions);
+      if (acrossError) {
+        logger.error('Error fetching across validation data:', {
+          error: acrossError,
+          documentId,
+          userId,
+          message: (acrossError as any)?.message
+        });
+      }
+
+      // Prepare validation data structure - use 'within' as primary if both exist, otherwise use whichever exists
+      if (withinData || acrossData) {
+        const primaryValidation = withinData || acrossData;
+
+        logger.info('Found validation data for report', {
+          documentId,
+          userId,
+          hasWithinValidation: !!withinData,
+          hasAcrossValidation: !!acrossData,
+          withinContradictions: withinData?.contradictions?.length || 0,
+          withinGaps: withinData?.gaps?.length || 0,
+          acrossContradictions: acrossData?.contradictions?.length || 0,
+          acrossGaps: acrossData?.gaps?.length || 0,
+        });
+
+        // Store both validation types if they exist
         validationData = {
-          contradictions: contradictions.contradictions || [],
-          gaps: contradictions.gaps || [],
-          agreements: contradictions.agreements || [],
-          keyClaims: contradictions.key_claims || [],
-          recommendations: contradictions.recommendations || [],
-          riskAssessment: contradictions.risk_assessment || null,
+          contradictions: primaryValidation.contradictions || [],
+          gaps: primaryValidation.gaps || [],
+          agreements: primaryValidation.agreements || [],
+          keyClaims: primaryValidation.key_claims || [],
+          recommendations: primaryValidation.recommendations || [],
+          riskAssessment: primaryValidation.risk_assessment || null,
           analysisMetadata: {
-            documentsAnalyzed: contradictions.documents_analyzed || 1,
-            totalChunksReviewed: contradictions.total_chunks_reviewed || 0,
-            analysisTimestamp: contradictions.created_at,
+            documentsAnalyzed: primaryValidation.documents_analyzed || 1,
+            totalChunksReviewed: primaryValidation.total_chunks_reviewed || 0,
+            analysisTimestamp: primaryValidation.created_at,
             cached: false,
           },
+          // Include both validation types for frontend selection
+          withinValidation: withinData ? {
+            contradictions: withinData.contradictions || [],
+            gaps: withinData.gaps || [],
+            agreements: withinData.agreements || [],
+            keyClaims: withinData.key_claims || [],
+            recommendations: withinData.recommendations || [],
+            riskAssessment: withinData.risk_assessment || null,
+            analysisMetadata: {
+              documentsAnalyzed: withinData.documents_analyzed || 1,
+              totalChunksReviewed: withinData.total_chunks_reviewed || 0,
+              analysisTimestamp: withinData.created_at,
+              cached: false,
+            },
+          } : null,
+          acrossValidation: acrossData ? {
+            contradictions: acrossData.contradictions || [],
+            gaps: acrossData.gaps || [],
+            agreements: acrossData.agreements || [],
+            keyClaims: acrossData.key_claims || [],
+            recommendations: acrossData.recommendations || [],
+            riskAssessment: acrossData.risk_assessment || null,
+            analysisMetadata: {
+              documentsAnalyzed: acrossData.documents_analyzed || 1,
+              totalChunksReviewed: acrossData.total_chunks_reviewed || 0,
+              analysisTimestamp: acrossData.created_at,
+              cached: false,
+            },
+          } : null,
         };
       } else {
-        logger.info('No validation data found for this document');
+        logger.info('No validation data found for this document', {
+          documentId,
+          userId
+        });
       }
     } catch (err) {
-      logger.warn('Failed to fetch validation data for report:', { error: err });
+      logger.error('Failed to fetch validation data for report:', {
+        error: err,
+        message: (err as any)?.message,
+        documentId,
+        userId
+      });
     }
 
     // 6. Compile report
+    // Get total chunks for this document
+    const { data: chunks, error: chunksError } = await sb
+      .from('document_chunks')
+      .select('id')
+      .eq('document_id', documentId);
+
+    const totalChunks = !chunksError && chunks ? chunks.length : 0;
+
     const report = {
       document: {
         id: document.id,
@@ -206,6 +295,7 @@ router.get("/documents/:id/report", async (req, res, next) => {
         fileType: document.file_type,
         fileSize: document.file_size,
         createdAt: document.created_at,
+        totalChunks: totalChunks,
         metadata: document.metadata,
       },
       summary: summary || null,
@@ -220,6 +310,9 @@ router.get("/documents/:id/report", async (req, res, next) => {
       insightCount: insightsList.length,
       chatHighlightCount: chatHighlights.length,
       hasValidation: !!validationData,
+      validationContradictions: validationData?.contradictions?.length || 0,
+      validationGaps: validationData?.gaps?.length || 0,
+      validationRecommendations: validationData?.recommendations?.length || 0,
     });
     logger.info(`Report generated successfully`);
     return res.json(report);
@@ -264,6 +357,87 @@ router.delete("/documents/:id", rateLimitMiddleware.default, async (req, res, ne
     }
 
     res.json({ success: true, message: "Document deleted" });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/documents/:id/preferences - Save report preferences for a document
+router.post("/documents/:id/preferences", async (req, res, next) => {
+  try {
+    const userId = req.authUserId;
+    if (!userId) {
+      throw new UnauthorizedError("User not authenticated");
+    }
+
+    const { id: documentId } = req.params;
+    validateUUID(documentId, "documentId");
+
+    const { enabledSections, hiddenInsights, hiddenValidationItems } = req.body;
+
+    const sb = adminClient();
+
+    // Upsert preferences into database
+    const { error: prefsError } = await sb
+      .from('report_preferences')
+      .upsert({
+        document_id: documentId,
+        user_id: userId,
+        enabled_sections: enabledSections || [],
+        hidden_insights: hiddenInsights || [],
+        hidden_validation_items: hiddenValidationItems || [],
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'document_id,user_id'
+      });
+
+    if (prefsError) {
+      logger.warn('Failed to save preferences:', { error: prefsError });
+      throw new InternalServerError('Failed to save preferences');
+    }
+
+    logger.info(`Saved preferences for document ${documentId}`);
+    res.json({ success: true, message: 'Preferences saved' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/documents/:id/preferences - Get report preferences for a document
+router.get("/documents/:id/preferences", async (req, res, next) => {
+  try {
+    const userId = req.authUserId;
+    if (!userId) {
+      throw new UnauthorizedError("User not authenticated");
+    }
+
+    const { id: documentId } = req.params;
+    validateUUID(documentId, "documentId");
+
+    const sb = adminClient();
+
+    const { data: preferences, error: prefsError } = await sb
+      .from('report_preferences')
+      .select('*')
+      .eq('document_id', documentId)
+      .eq('user_id', userId)
+      .single();
+
+    if (prefsError) {
+      // No preferences found is not an error, return empty defaults
+      logger.info(`No preferences found for document ${documentId}`);
+      return res.json({
+        enabledSections: [],
+        hiddenInsights: [],
+        hiddenValidationItems: [],
+      });
+    }
+
+    res.json({
+      enabledSections: preferences.enabled_sections || [],
+      hiddenInsights: preferences.hidden_insights || [],
+      hiddenValidationItems: preferences.hidden_validation_items || [],
+    });
   } catch (err) {
     next(err);
   }
