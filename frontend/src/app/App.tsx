@@ -1,10 +1,15 @@
 import {Toaster} from "@/shared/ui/toaster.tsx";
 import {Toaster as Sonner} from "@/shared/ui/sonner.tsx";
 import {TooltipProvider} from "@/shared/ui/tooltip.tsx";
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+import {QueryClient} from "@tanstack/react-query";
+import {PersistQueryClientProvider} from "@tanstack/react-query-persist-client";
+import {createSyncStoragePersister} from "@tanstack/query-sync-storage-persister";
 import {BrowserRouter, Route, Routes, Navigate} from "react-router-dom";
 import {AuthProvider} from "../features/auth/context/AuthContext.tsx";
 import ProtectedRoute from "../shared/components/ProtectedRoute.tsx";
+
+// Landing Pages
+import Landing from "../features/landing/pages/Landing.tsx";
 
 // Auth Pages
 import Index from "../features/index/Index.tsx";
@@ -44,10 +49,27 @@ const Chat = () => (
   </div>
 );
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: Infinity,           // Data never goes stale (won't auto-refetch)
+      gcTime: Infinity,              // Cache never expires
+      refetchOnWindowFocus: false,   // Don't refetch when tab regains focus
+      refetchOnMount: false,         // Don't refetch when component mounts
+      refetchOnReconnect: false,     // Don't refetch on reconnect
+      retry: 1,
+    },
+  },
+});
+
+// Persist cache to localStorage (with SSR safety check)
+const persister = createSyncStoragePersister({
+  storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  key: 'inscribe-cache',
+});
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -55,6 +77,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             {/* Public routes - accessible without authentication */}
+            <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/signup-success" element={<SignupSuccess />} />
@@ -69,7 +92,7 @@ const App = () => (
 
             {/* Protected routes - require authentication */}
             <Route
-              path="/"
+              path="/app"
               element={
                 <ProtectedRoute>
                   <Index />
@@ -104,7 +127,7 @@ const App = () => (
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
-  </QueryClientProvider>
+  </PersistQueryClientProvider>
 );
 
 export default App;

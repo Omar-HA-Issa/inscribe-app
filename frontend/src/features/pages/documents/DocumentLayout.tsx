@@ -90,7 +90,7 @@ export default function DocumentLayout() {
   // Special layout for Chat tab
   if (currentTab === "chat") {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
         <Header
           activeTab={currentTab}
           onTabChange={(tab) => navigate(`/documents/${id}/${tab}`)}
@@ -101,19 +101,17 @@ export default function DocumentLayout() {
         />
 
         {/* Chat Layout with Sidebar - Full height below header */}
-        <div className="flex pt-20 h-screen">
+        <div className="flex pt-20 flex-1 min-h-0">
           <Sidebar selectedDocs={selectedDocs} setSelectedDocs={setSelectedDocs} />
           <Chat selectedDocs={selectedDocs} />
         </div>
-
-        <Footer />
       </div>
     );
   }
 
   // Regular layout for other tabs
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Header
         activeTab={currentTab}
         onTabChange={(tab) => navigate(`/documents/${id}/${tab}`)}
@@ -124,7 +122,7 @@ export default function DocumentLayout() {
       />
 
       {/* Content Area with padding for fixed header */}
-      <main className="px-6 pt-28 pb-6">
+      <main className="px-6 pt-28 pb-6 flex-1">
         <Outlet />
       </main>
 

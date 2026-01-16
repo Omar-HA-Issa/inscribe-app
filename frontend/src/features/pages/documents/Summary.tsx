@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { getDocumentSummary, type SummaryResult } from "../../../shared/lib/documentsApi";
 
 export const Summary = () => {
@@ -7,34 +7,21 @@ export const Summary = () => {
   const params = useParams<{ id?: string; documentId?: string; docId?: string }>();
   const documentId = params.id || params.documentId || params.docId;
 
-  const [summary, setSummary] = useState<SummaryResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: summary,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery<SummaryResult>({
+    queryKey: ['document', documentId, 'summary'],
+    queryFn: () => getDocumentSummary(documentId!),
+    enabled: !!documentId,
+  });
 
-  useEffect(() => {
-    if (!documentId) {
-      setError("No document ID found in URL");
-      setLoading(false);
-      return;
-    }
-
-    const fetchSummary = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getDocumentSummary(documentId);
-        setSummary(data);
-      } catch (err) {
-        console.error("❌ Failed to fetch summary:", err);
-        const errorMessage = err instanceof Error ? err.message : "Failed to load summary";
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSummary();
-  }, [documentId]);
+  const error = !documentId
+    ? "No document ID found in URL"
+    : queryError
+      ? (queryError instanceof Error ? queryError.message : "Failed to load summary")
+      : null;
 
   // Helper function to highlight keywords in text (handles multi-word phrases)
   const highlightKeywords = (text: string, keywords: string[]) => {

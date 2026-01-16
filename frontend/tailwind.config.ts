@@ -63,6 +63,12 @@ const config: Config = {
           mid: "hsl(var(--chart-mid))",
           dark: "hsl(var(--chart-dark))",
         },
+        brand: {
+          cyan: "hsl(var(--brand-cyan))",
+          blue: "hsl(var(--brand-blue))",
+          purple: "hsl(var(--brand-purple))",
+          magenta: "hsl(var(--brand-magenta))",
+        },
       },
       fontFamily: {
         sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],

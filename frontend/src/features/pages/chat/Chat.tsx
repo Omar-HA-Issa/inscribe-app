@@ -45,9 +45,10 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs = [] }) => {
     el.style.height = Math.min(el.scrollHeight, 200) + "px";
   }
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // Auto-scroll disabled - users can scroll manually
+  // useEffect(() => {
+  //   messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // }, [messages]);
 
   useEffect(() => {
     if (textareaRef.current) autoGrow(textareaRef.current);
@@ -270,7 +271,7 @@ export const Chat: React.FC<ChatProps> = ({ selectedDocs = [] }) => {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-border bg-background/80 backdrop-blur-sm">
+      <div className="bg-background/80 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto px-6 py-5">
           <form
             onSubmit={(e) => {

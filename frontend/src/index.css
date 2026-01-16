@@ -52,13 +52,19 @@ All colors MUST be HSL.
     --destructive-foreground: 0 0% 91%;
     
     /* Borders - Hairline Subtle */
-    --border: 0 0% 100% / 0.06; /* rgba(255,255,255,0.06) */
+    --border: 0 0% 100% / 0.12; /* rgba(255,255,255,0.12) */
     --input: 240 4% 10%;
     --ring: 0 0% 83%;
     
     /* Radius - Subtle Curves */
     --radius: 0.75rem;
-    
+
+    /* Brand colors - for landing page gradients */
+    --brand-cyan: 180 100% 60%;
+    --brand-blue: 220 90% 60%;
+    --brand-purple: 270 80% 60%;
+    --brand-magenta: 320 90% 60%;
+
     /* Gradients for Depth - Pure Greyscale */
     --gradient-card: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 100%);
     --gradient-active: linear-gradient(90deg, rgba(191,191,191,1) 0%, rgba(255,255,255,1) 100%);

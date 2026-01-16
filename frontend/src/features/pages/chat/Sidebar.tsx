@@ -105,7 +105,7 @@ export function Sidebar({ selectedDocs, setSelectedDocs }: SidebarProps) {
 
   if (isCollapsed) {
     return (
-      <div className="w-16 bg-background border-r border-border flex flex-col items-center h-[calc(100vh-6rem)] py-6 gap-6 transition-all duration-300">
+      <div className="w-16 bg-background border-r border-border flex flex-col items-center h-full py-6 gap-6 transition-all duration-300">
         {/* Expand Button */}
         <button
           onClick={() => setIsCollapsed(false)}
@@ -138,7 +138,7 @@ export function Sidebar({ selectedDocs, setSelectedDocs }: SidebarProps) {
   }
 
   return (
-    <div className="w-80 bg-background border-r border-border flex flex-col h-[calc(100vh-6rem)] transition-all duration-300">
+    <div className="w-80 bg-background border-r border-border flex flex-col h-full transition-all duration-300">
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="p-6 pb-4">
@@ -271,7 +271,7 @@ export function Sidebar({ selectedDocs, setSelectedDocs }: SidebarProps) {
       </div>
 
       {/* Upload Button */}
-      <div className="p-6 pt-4 border-t border-border">
+      <div className="px-6 py-5">
         <label className="flex items-center justify-center gap-2 px-4 py-3
           rounded-xl cursor-pointer text-sm font-medium
           bg-gradient-to-r from-[#a855f7] via-[#8b5cf6] to-[#6366f1]
