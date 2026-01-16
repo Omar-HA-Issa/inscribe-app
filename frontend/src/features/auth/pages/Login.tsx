@@ -2,6 +2,7 @@ import {useState} from "react";
 import {Link, useNavigate} from "react-router-dom";
 import {motion} from "framer-motion";
 import Lottie from "lottie-react";
+import {ArrowLeft} from "lucide-react";
 import {Button} from "@/shared/ui/button.tsx";
 import {Input} from "@/shared/ui/input.tsx";
 import {Label} from "@/shared/ui/label.tsx";
@@ -54,6 +55,15 @@ export default function Login() {
         className="flex-1 flex items-center justify-center px-12 py-12"
       >
           <div className="w-full max-w-md space-y-8">
+            {/* Back to Home */}
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Home
+            </Link>
+
             {/* Logo */}
             <div className="space-y-2">
               <h1
