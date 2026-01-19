@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Download, FileText, Calendar, HardDrive, AlertCircle, CheckSquare, Square, Edit2, Check, X } from 'lucide-react';
-import { getDocumentReport, DocumentReport } from '@/shared/lib/documentsApi';
+import { getDocumentReport, DocumentReport, ValidationDataBase } from '@/shared/lib/documentsApi';
 import { LoadingSpinner } from '@/shared/components/LoadingSpinner.tsx';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, PageBreak, UnorderedList } from 'docx';
 
@@ -240,13 +240,13 @@ export const Report = () => {
   const getCombinedValidationData = () => {
     if (!report?.validation) return null;
 
-    const combinedData = {
-      contradictions: [] as any[],
-      gaps: [] as any[],
-      agreements: [] as any[],
-      keyClaims: [] as any[],
-      recommendations: [] as any[],
-      riskAssessment: null as any,
+    const combinedData: ValidationDataBase = {
+      contradictions: [],
+      gaps: [],
+      agreements: [],
+      keyClaims: [],
+      recommendations: [],
+      riskAssessment: null,
       analysisMetadata: {
         documentsAnalyzed: 0,
         totalChunksReviewed: 0,
@@ -255,8 +255,8 @@ export const Report = () => {
       },
     };
 
-    if (selectedValidationTypes.has('within') && (report.validation as any).withinValidation) {
-      const withinData = (report.validation as any).withinValidation;
+    if (selectedValidationTypes.has('within') && report.validation.withinValidation) {
+      const withinData = report.validation.withinValidation;
       combinedData.contradictions.push(...(withinData.contradictions || []));
       combinedData.gaps.push(...(withinData.gaps || []));
       combinedData.agreements.push(...(withinData.agreements || []));
@@ -269,8 +269,8 @@ export const Report = () => {
       combinedData.analysisMetadata.totalChunksReviewed += withinData.analysisMetadata?.totalChunksReviewed || 0;
     }
 
-    if (selectedValidationTypes.has('across') && (report.validation as any).acrossValidation) {
-      const acrossData = (report.validation as any).acrossValidation;
+    if (selectedValidationTypes.has('across') && report.validation.acrossValidation) {
+      const acrossData = report.validation.acrossValidation;
       combinedData.contradictions.push(...(acrossData.contradictions || []));
       combinedData.gaps.push(...(acrossData.gaps || []));
       combinedData.agreements.push(...(acrossData.agreements || []));
@@ -425,11 +425,11 @@ export const Report = () => {
       let activeValidation = null;
       let validationTypeLabel = '';
 
-      if (selectedValidationTypes.has('within') && (report.validation as any).withinValidation) {
-        activeValidation = (report.validation as any).withinValidation;
+      if (selectedValidationTypes.has('within') && report.validation.withinValidation) {
+        activeValidation = report.validation.withinValidation;
         validationTypeLabel = 'Within Document Validation Analysis';
-      } else if (selectedValidationTypes.has('across') && (report.validation as any).acrossValidation) {
-        activeValidation = (report.validation as any).acrossValidation;
+      } else if (selectedValidationTypes.has('across') && report.validation.acrossValidation) {
+        activeValidation = report.validation.acrossValidation;
         validationTypeLabel = 'Cross Document Validation Analysis';
       } else {
         activeValidation = report.validation;
@@ -666,13 +666,13 @@ export const Report = () => {
         )}
 
         {/* Validation Type Selector */}
-        {report?.validation && ((report.validation as any).withinValidation || (report.validation as any).acrossValidation) && (
+        {report?.validation && (report.validation.withinValidation || report.validation.acrossValidation) && (
           <div className="mt-6 pt-6 border-t border-border">
             <p className="text-sm text-muted-foreground mb-3">
               Validation Analysis Type
             </p>
             <div className="flex gap-3">
-              {(report.validation as any).withinValidation && (
+              {report.validation.withinValidation && (
                 <button
                   onClick={() => toggleValidationType('within')}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
@@ -689,7 +689,7 @@ export const Report = () => {
                   Within Document
                 </button>
               )}
-              {(report.validation as any).acrossValidation && (
+              {report.validation.acrossValidation && (
                 <button
                   onClick={() => toggleValidationType('across')}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
@@ -921,7 +921,7 @@ export const Report = () => {
             <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">
               Validation Analysis
             </h3>
-            {((report.validation as any).withinValidation || (report.validation as any).acrossValidation) && (
+            {(report.validation.withinValidation || report.validation.acrossValidation) && (
               <div className="flex gap-2">
                 {selectedValidationTypes.has('within') && (
                   <span className="text-xs bg-accent/10 border border-accent/30 rounded px-2 py-1 text-muted-foreground">

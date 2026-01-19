@@ -99,6 +99,35 @@ export interface PasswordResetResponse {
   message: string;
 }
 
+export interface UploadDocumentResponse {
+  success: boolean;
+  document?: {
+    id: string;
+    file_name: string;
+    [key: string]: unknown;
+  };
+  message?: string;
+}
+
+export interface ChatResponse {
+  success: boolean;
+  answer?: string;
+  sources?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface SearchResponse {
+  success: boolean;
+  results?: unknown[];
+  [key: string]: unknown;
+}
+
+interface ErrorPayload {
+  code?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
 // =====================
 // Authentication APIs
 // =====================
@@ -230,7 +259,7 @@ export async function resetPasswordRequest(email: string): Promise<PasswordReset
       body: JSON.stringify({ email }),
     });
 
-    let data: any;
+    let data: PasswordResetResponse;
     try {
       data = await response.json();
     } catch {
@@ -264,7 +293,7 @@ export async function resetPassword(accessToken: string, newPassword: string): P
       body: JSON.stringify({ password: newPassword }),
     });
 
-    let data: any;
+    let data: PasswordResetResponse;
     try {
       data = await response.json();
     } catch {
@@ -342,7 +371,7 @@ export async function fetchUserDocuments(): Promise<UserDocumentsResponse> {
  * Uploads a document
  * POST /api/upload
  */
-export async function uploadDocument(file: File): Promise<any> {
+export async function uploadDocument(file: File): Promise<UploadDocumentResponse> {
   try {
     const formData = new FormData();
     formData.append("file", file);
@@ -362,7 +391,7 @@ export async function uploadDocument(file: File): Promise<any> {
       body: formData,
     });
 
-    let errorPayload: any = null;
+    let errorPayload: ErrorPayload | null = null;
     if (!response.ok) {
       try {
         errorPayload = await response.json();
@@ -398,7 +427,7 @@ export async function uploadDocument(file: File): Promise<any> {
  * Sends a chat query
  * POST /api/chat
  */
-export async function sendChatQuery(query: string, limit: number = 5): Promise<any> {
+export async function sendChatQuery(query: string, limit: number = 5): Promise<ChatResponse> {
   try {
     const response = await fetch(`${API_CONFIG.baseUrl}/api/chat`, {
       method: "POST",
@@ -429,7 +458,7 @@ export async function searchDocuments(
   query: string,
   topK: number = 8,
   minSimilarity: number = 0.2
-): Promise<any> {
+): Promise<SearchResponse> {
   try {
     const response = await fetch(`${API_CONFIG.baseUrl}/api/search`, {
       method: "POST",
@@ -491,7 +520,7 @@ export async function getUploadStatus(): Promise<{
 // NOTE: This is kept for backward compatibility. New code should import from api.ts
 
 interface RequestOptions extends RequestInit {
-  body?: any;
+  body?: BodyInit | null;
 }
 
 class ApiClient {
@@ -545,14 +574,14 @@ class ApiClient {
     return this.request<T>(endpoint, { method: 'GET' });
   }
 
-  post<T>(endpoint: string, body?: any): Promise<T> {
+  post<T>(endpoint: string, body?: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
     });
   }
 
-  put<T>(endpoint: string, body?: any): Promise<T> {
+  put<T>(endpoint: string, body?: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,

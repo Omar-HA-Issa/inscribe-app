@@ -4,7 +4,7 @@ import {getCurrentUser, signIn, signOut, signUp} from "@/shared/lib/apiClient.ts
 interface User {
   id: string;
   email: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface AuthContextType {
@@ -43,28 +43,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string) => {
-    try {
-      const response = await signIn(email, password);
-      if (response.user) {
-        setUser(response.user);
-      }
-    } catch (error) {
-      throw error;
+    const response = await signIn(email, password);
+    if (response.user) {
+      setUser(response.user);
     }
   };
 
   const signup = async (email: string, password: string) => {
-    try {
-      const response = await signUp(email, password);
-      if (response.user) {
-        setUser(response.user);
-      }
-      // Note: if needs_email_confirm is true, user might need to verify email
-      if (response.needs_email_confirm) {
-        console.log("Email confirmation required");
-      }
-    } catch (error) {
-      throw error;
+    const response = await signUp(email, password);
+    if (response.user) {
+      setUser(response.user);
+    }
+    // Note: if needs_email_confirm is true, user might need to verify email
+    if (response.needs_email_confirm) {
+      console.log("Email confirmation required");
     }
   };
 

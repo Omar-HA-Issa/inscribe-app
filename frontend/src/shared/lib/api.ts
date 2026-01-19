@@ -10,7 +10,7 @@ import { ApiError, logError } from '@/shared/lib/errorHandler';
 import { fetchWithRetry, logRequestResponse, createTimeoutSignal } from '@/shared/lib/requestUtils';
 
 interface RequestOptions extends RequestInit {
-  body?: any;
+  body?: BodyInit | null;
   timeout?: number;
   retry?: boolean;
 }
@@ -113,7 +113,7 @@ class ApiClient {
   /**
    * POST request
    */
-  post<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+  post<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'method'>): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
@@ -124,7 +124,7 @@ class ApiClient {
   /**
    * PUT request
    */
-  put<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+  put<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'method'>): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
@@ -142,7 +142,7 @@ class ApiClient {
   /**
    * PATCH request
    */
-  patch<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+  patch<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'method'>): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PATCH',

@@ -123,7 +123,6 @@ export const Validator = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
         if (!response.ok) throw new Error('Failed to fetch documents');
 
         const data = await response.json();
@@ -161,7 +160,11 @@ export const Validator = () => {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
         const token = localStorage.getItem('access_token');
 
-        const body: any = {
+        const body: {
+          documentId: string;
+          validationType: string;
+          compareDocumentIds?: string[];
+        } = {
           documentId: currentDocumentId,
           validationType: analysisMode,
         };
@@ -227,7 +230,6 @@ export const Validator = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
         throw new Error(errorData.error || 'Analysis failed');
       }
 
@@ -263,7 +265,6 @@ export const Validator = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
       if (!response.ok) throw new Error('Delete failed');
 
       // Remove from available documents

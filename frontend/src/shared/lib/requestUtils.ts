@@ -131,8 +131,8 @@ export async function fetchWithRetry<T>(
 export function logRequestResponse(
   method: string,
   url: string,
-  request?: any,
-  response?: any,
+  request?: unknown,
+  response?: unknown,
   duration?: number,
 ): void {
   if (!isDevelopment) return;
@@ -154,7 +154,7 @@ export function logRequestResponse(
 /**
  * Validates response data (basic check)
  */
-export function validateResponse<T>(data: any): T {
+export function validateResponse<T>(data: unknown): T {
   if (data === null || data === undefined) {
     throw new Error('Response data is null or undefined');
   }

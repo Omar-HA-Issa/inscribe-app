@@ -130,7 +130,7 @@ export interface ContradictionsResponse {
   groupedByType: Record<ContradictionType, Contradiction[]>;
 }
 
-export interface ValidationData {
+export interface ValidationDataBase {
   contradictions: Contradiction[];
   gaps: InformationGap[];
   agreements: Agreement[];
@@ -145,6 +145,12 @@ export interface ValidationData {
   };
   // Enhanced contradiction grouping (non-breaking addition)
   contradictionsGroupedByType?: Record<ContradictionType, Contradiction[]>;
+}
+
+export interface ValidationData extends ValidationDataBase {
+  // Optional nested validation types for within/across document analysis
+  withinValidation?: ValidationDataBase;
+  acrossValidation?: ValidationDataBase;
 }
 
 export interface DocumentReport {

@@ -56,7 +56,7 @@ const Index = () => {
       } else {
         throw new Error(response.message || "Upload failed");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("❌ Upload error:", error);
 
       let errorMessage = "Failed to upload document. Please try again.";
@@ -64,15 +64,16 @@ const Index = () => {
       let isNonTechnical = false;
 
       // Extract error message from various error object formats
-      if (typeof error?.userMessage === 'string') {
-        errorMessage = error.userMessage;
+      const err = error as { userMessage?: string; message?: string } | null;
+      if (typeof err?.userMessage === 'string') {
+        errorMessage = err.userMessage;
         // Check if it's a non-technical document error
         if (errorMessage.includes("doesn't appear to be technical")) {
           errorTitle = "Non-Technical Document";
           isNonTechnical = true;
         }
-      } else if (typeof error?.message === 'string') {
-        errorMessage = error.message;
+      } else if (typeof err?.message === 'string') {
+        errorMessage = err.message;
         if (errorMessage.includes("doesn't appear to be technical")) {
           errorTitle = "Non-Technical Document";
           isNonTechnical = true;
