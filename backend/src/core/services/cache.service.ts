@@ -22,8 +22,10 @@ export class CacheService<T> {
     // Enforce size limit using LRU-like eviction (remove oldest)
     if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
-      logger.debug('Cache eviction due to size limit', { maxSize: this.maxSize });
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+        logger.debug('Cache eviction due to size limit', { maxSize: this.maxSize });
+      }
     }
 
     const expiresAt = Date.now() + ttlMs;

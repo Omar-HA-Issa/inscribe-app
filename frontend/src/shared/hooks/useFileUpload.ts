@@ -52,7 +52,7 @@ export function useFileUpload() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const token = localStorage.getItem(STORAGE_KEYS.accessToken);
+      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       const headers: Record<string, string> = {};
 
       if (token) {
@@ -141,7 +141,7 @@ export function useFileUpload() {
         });
 
         // Set headers
-        xhr.open('POST', `${API_CONFIG.baseUrl}/api/upload`);
+        xhr.open('POST', `${API_CONFIG.BASE_URL}/api/upload`);
         Object.entries(headers).forEach(([key, value]) => {
           xhr.setRequestHeader(key, value);
         });
@@ -205,13 +205,13 @@ export function useDocumentDelete() {
     setError(null);
 
     try {
-      const token = localStorage.getItem(STORAGE_KEYS.accessToken);
+      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       if (!token) {
         throw new ApiError(401, 'Not authenticated. Please login again.');
       }
 
       const response = await fetchWithRetry(
-        `${API_CONFIG.baseUrl}/api/documents/${documentId}`,
+        `${API_CONFIG.BASE_URL}/api/documents/${documentId}`,
         {
           method: 'DELETE',
           headers: {

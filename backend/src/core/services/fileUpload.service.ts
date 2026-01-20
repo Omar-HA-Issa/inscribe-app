@@ -28,14 +28,14 @@ export class FileUploadService {
       );
     }
 
-    if (!FILE_CONFIG.ALLOWED_MIME_TYPES.includes(mimetype)) {
+    if (!(FILE_CONFIG.ALLOWED_MIME_TYPES as readonly string[]).includes(mimetype)) {
       throw new BadRequestError(
         `Invalid file type. Only ${FILE_CONFIG.ALLOWED_EXTENSIONS.join(', ')} files are allowed.`
       );
     }
 
     const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
-    if (!FILE_CONFIG.ALLOWED_EXTENSIONS.includes(ext)) {
+    if (!(FILE_CONFIG.ALLOWED_EXTENSIONS as readonly string[]).includes(ext)) {
       throw new BadRequestError(
         `Invalid file extension. Only ${FILE_CONFIG.ALLOWED_EXTENSIONS.join(', ')} files are allowed.`
       );

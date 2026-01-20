@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { AlertCircle, Target, Lightbulb, AlertTriangle, FileText, Filter, RefreshCw, Clock, Copy, Check, Search, ArrowUpDown } from 'lucide-react';
 import { generateDocumentInsights, Insight } from '@/shared/lib/insightsApi';
@@ -43,13 +43,7 @@ export const Insights = () => {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [sortByConfidence, setSortByConfidence] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    if (documentId) {
-      loadInsights(false);
-    }
-  }, [documentId]);
-
-  const loadInsights = async (forceRegenerate: boolean) => {
+  const loadInsights = useCallback(async (forceRegenerate: boolean) => {
     if (!documentId) return;
 
     if (forceRegenerate) {
@@ -70,7 +64,16 @@ export const Insights = () => {
       setLoading(false);
       setRegenerating(false);
     }
-  };
+  }, [documentId]);
+
+  const hasLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (documentId && !hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      loadInsights(false);
+    }
+  }, [documentId, loadInsights]);
 
   const handleRegenerate = () => {
     loadInsights(true);

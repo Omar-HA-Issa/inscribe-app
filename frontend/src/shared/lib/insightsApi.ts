@@ -1,4 +1,4 @@
-import { api } from './apiClient';
+import { api } from './api';
 import { getCachedInsights, setCachedInsights, clearDocumentCache } from './insightsCache';
 
 export interface Insight {

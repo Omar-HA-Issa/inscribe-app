@@ -59,12 +59,14 @@ export function useAsync<T, E = Error>(
     }
   }, [asyncFunction, onSuccess, onError]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const hasExecutedRef = useRef(false);
+
   useEffect(() => {
-    if (immediate) {
+    if (immediate && !hasExecutedRef.current) {
+      hasExecutedRef.current = true;
       execute();
     }
-  }, [immediate]);
+  }, [immediate, execute]);
 
   return { ...state, execute };
 }
@@ -127,10 +129,14 @@ export function usePaginatedAsync<T>(
     [asyncFunction, pageSize, totalPages],
   );
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const hasLoadedInitialRef = useRef(false);
+
   useEffect(() => {
-    loadPage(page);
-  }, []);
+    if (!hasLoadedInitialRef.current) {
+      hasLoadedInitialRef.current = true;
+      loadPage(page);
+    }
+  }, [loadPage, page]);
 
   const nextPage = useCallback(async () => {
     if (page < totalPages) {

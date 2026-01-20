@@ -5,12 +5,12 @@
  * - Dependency Inversion: Uses injected configuration
  */
 
-import { API_CONFIG, STORAGE_KEYS, isDevelopment } from '@/shared/constants/config';
+import { API_CONFIG, STORAGE_KEYS, IS_DEVELOPMENT } from '@/shared/constants/config';
 import { ApiError, logError } from '@/shared/lib/errorHandler';
 import { fetchWithRetry, logRequestResponse, createTimeoutSignal } from '@/shared/lib/requestUtils';
 
 interface RequestOptions extends RequestInit {
-  body?: any;
+  body?: BodyInit | null;
   timeout?: number;
   retry?: boolean;
 }
@@ -30,11 +30,11 @@ class ApiClient {
    */
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const timeout = options.timeout ?? API_CONFIG.timeout;
+    const timeout = options.timeout ?? API_CONFIG.TIMEOUT;
     const shouldRetry = options.retry !== false;
 
     // Get token from localStorage
-    const token = localStorage.getItem(STORAGE_KEYS.accessToken);
+    const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
     const config: RequestInit = {
       ...options,
@@ -59,7 +59,7 @@ class ApiClient {
       return data;
     } catch (error) {
       const duration = performance.now() - startTime;
-      logError(`API ${config.method || 'GET'} ${endpoint}`, error, isDevelopment);
+      logError(`API ${config.method || 'GET'} ${endpoint}`, error, IS_DEVELOPMENT);
 
       // Handle and re-throw with context
       if (error instanceof ApiError) {
@@ -113,7 +113,7 @@ class ApiClient {
   /**
    * POST request
    */
-  post<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+  post<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'method'>): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
@@ -124,7 +124,7 @@ class ApiClient {
   /**
    * PUT request
    */
-  put<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+  put<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'method'>): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
@@ -142,7 +142,7 @@ class ApiClient {
   /**
    * PATCH request
    */
-  patch<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+  patch<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'method'>): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PATCH',
@@ -151,5 +151,5 @@ class ApiClient {
   }
 }
 
-export const api = new ApiClient(API_CONFIG.baseUrl);
+export const api = new ApiClient(API_CONFIG.BASE_URL);
 export { API_CONFIG };

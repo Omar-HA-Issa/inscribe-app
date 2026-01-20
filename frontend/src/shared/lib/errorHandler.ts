@@ -91,16 +91,17 @@ export function handleApiError(error: unknown): ErrorResponse {
 /**
  * Extracts error message from various response types
  */
-export function extractErrorMessage(response: any): string {
+export function extractErrorMessage(response: unknown): string {
   if (typeof response === 'string') {
     return response;
   }
 
   if (typeof response === 'object' && response !== null) {
+    const res = response as { message?: string; error?: string; userMessage?: string };
     return (
-      response.message ||
-      response.error ||
-      response.userMessage ||
+      res.message ||
+      res.error ||
+      res.userMessage ||
       'An error occurred'
     );
   }
