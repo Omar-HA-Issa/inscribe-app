@@ -247,9 +247,9 @@ router.post(
       }
 
       // Only do heavy work if document is technical and not a duplicate
-      console.time("chunking");
+      const chunkingStart = performance.now();
       const chunks: Chunk[] = await chunkTextContent(documentText);
-      console.timeEnd("chunking");
+      logger.info(`⏱️ Chunking completed in ${Math.round(performance.now() - chunkingStart)}ms`);
 
       if (!chunks.length) {
         throw new BadRequestError("No text content found to chunk");
@@ -287,7 +287,7 @@ router.post(
 
       const documentId: string = docIns.id;
 
-      console.time("embeddings");
+      const embeddingsStart = performance.now();
       const texts: string[] = chunks.map((c: Chunk) => c.text);
       const BATCH_SIZE = 64;
 
@@ -299,7 +299,7 @@ router.post(
         texts.length > BATCH_SIZE
           ? await embedInBatches(texts, BATCH_SIZE)
           : await EmbeddingService.generateEmbeddings(texts);
-      console.timeEnd("embeddings");
+      logger.info(`⏱️ Embeddings completed in ${Math.round(performance.now() - embeddingsStart)}ms`);
 
       logger.info(`✅ Generated ${vectors.length} embeddings`);
 
@@ -307,7 +307,7 @@ router.post(
         throw new Error("Failed to generate embeddings for all chunks");
       }
 
-      console.time("persist");
+      const persistStart = performance.now();
       type ChunkRow = {
         document_id: string;
         content: string;
@@ -335,7 +335,7 @@ router.post(
           throw new Error("Failed to save chunks");
         }
       }
-      console.timeEnd("persist");
+      logger.info(`⏱️ Database persist completed in ${Math.round(performance.now() - persistStart)}ms`);
 
       return res.json({
         success: true,

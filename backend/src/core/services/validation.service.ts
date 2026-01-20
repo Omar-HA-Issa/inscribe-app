@@ -1,15 +1,6 @@
-import OpenAI from 'openai';
-import { createClient } from '@supabase/supabase-js';
 import { logger } from '../../shared/utils/logger';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { adminClient } from '../clients/supabaseClient';
+import { getOpenAIClient, LLM_MODELS } from './llm.service';
 
 interface ContradictionsResponse {
   contradictions: Contradiction[];
@@ -159,7 +150,7 @@ export async function detectWithinDocument(
   }
 
   // Fetch all chunks for the document
-  const { data: chunks, error } = await supabase
+  const { data: chunks, error } = await adminClient()
     .from('document_chunks')
     .select('id, content, chunk_index, documents!inner(id, file_name, user_id)')
     .eq('document_id', documentId)
@@ -205,7 +196,7 @@ export async function detectAcrossDocuments(
   }
 
   // Fetch primary document chunks
-  const { data: primaryChunks, error: primaryError } = await supabase
+  const { data: primaryChunks, error: primaryError } = await adminClient()
     .from('document_chunks')
     .select('id, content, chunk_index, documents!inner(id, file_name, user_id)')
     .eq('document_id', primaryDocumentId)
@@ -217,7 +208,7 @@ export async function detectAcrossDocuments(
   }
 
   // Fetch comparison documents
-  const { data: compareChunks, error: compareError } = await supabase
+  const { data: compareChunks, error: compareError } = await adminClient()
     .from('document_chunks')
     .select('id, content, chunk_index, document_id, documents!inner(id, file_name, user_id)')
     .in('document_id', compareDocumentIds)
@@ -431,8 +422,9 @@ IMPORTANT RULES:
 }
 
 async function callGPT4ForAnalysis(prompt: string): Promise<any> {
+  const openai = getOpenAIClient();
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: LLM_MODELS.ADVANCED,
     messages: [
       {
         role: 'system',
@@ -840,8 +832,9 @@ Return ONLY valid JSON:
 }`;
 
   try {
+    const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: LLM_MODELS.FAST,
       messages: [
         {
           role: 'system',

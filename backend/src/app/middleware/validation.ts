@@ -13,21 +13,21 @@ export const validateString = (
 ) => {
   return (value: any, fieldName: string): string => {
     if (!value || typeof value !== 'string') {
-      throw new ValidationError(`${fieldName} must be a string`, fieldName);
+      throw new ValidationError(`${fieldName} must be a string`, { [fieldName]: [`${fieldName} must be a string`] });
     }
 
     const trimmed = value.trim();
     if (trimmed.length < minLength) {
       throw new ValidationError(
         `${fieldName} must be at least ${minLength} characters`,
-        fieldName
+        { [fieldName]: [`${fieldName} must be at least ${minLength} characters`] }
       );
     }
 
     if (trimmed.length > maxLength) {
       throw new ValidationError(
         `${fieldName} must not exceed ${maxLength} characters`,
-        fieldName
+        { [fieldName]: [`${fieldName} must not exceed ${maxLength} characters`] }
       );
     }
 
@@ -37,12 +37,12 @@ export const validateString = (
 
 export const validateUUID = (value: any, fieldName: string = 'id'): string => {
   if (!value || typeof value !== 'string') {
-    throw new ValidationError(`${fieldName} must be a valid UUID`, fieldName);
+    throw new ValidationError(`${fieldName} must be a valid UUID`, { [fieldName]: [`${fieldName} must be a valid UUID`] });
   }
 
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidPattern.test(value)) {
-    throw new ValidationError(`${fieldName} must be a valid UUID`, fieldName);
+    throw new ValidationError(`${fieldName} must be a valid UUID`, { [fieldName]: [`${fieldName} must be a valid UUID`] });
   }
 
   return value;
@@ -55,20 +55,20 @@ export const validateNumber = (
   max?: number
 ): number => {
   if (typeof value !== 'number') {
-    throw new ValidationError(`${fieldName} must be a number`, fieldName);
+    throw new ValidationError(`${fieldName} must be a number`, { [fieldName]: [`${fieldName} must be a number`] });
   }
 
   if (min !== undefined && value < min) {
     throw new ValidationError(
       `${fieldName} must be at least ${min}`,
-      fieldName
+      { [fieldName]: [`${fieldName} must be at least ${min}`] }
     );
   }
 
   if (max !== undefined && value > max) {
     throw new ValidationError(
       `${fieldName} must not exceed ${max}`,
-      fieldName
+      { [fieldName]: [`${fieldName} must not exceed ${max}`] }
     );
   }
 

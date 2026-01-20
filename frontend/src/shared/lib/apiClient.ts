@@ -3,7 +3,7 @@
  * SOLID Principles: Single Responsibility - Auth logic and API calls separated by concern
  */
 
-import { API_CONFIG, STORAGE_KEYS, isDevelopment } from '@/shared/constants/config';
+import { API_CONFIG, STORAGE_KEYS, IS_DEVELOPMENT } from '@/shared/constants/config';
 import { ApiError, extractErrorMessage, logError } from '@/shared/lib/errorHandler';
 
 // =====================
@@ -15,9 +15,9 @@ import { ApiError, extractErrorMessage, logError } from '@/shared/lib/errorHandl
  */
 export function getAuthToken(): string | null {
   try {
-    return localStorage.getItem(STORAGE_KEYS.accessToken);
+    return localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
   } catch {
-    logError('getAuthToken', 'Failed to retrieve token from storage', isDevelopment);
+    logError('getAuthToken', 'Failed to retrieve token from storage', IS_DEVELOPMENT);
     return null;
   }
 }
@@ -27,10 +27,10 @@ export function getAuthToken(): string | null {
  */
 export function setAuthTokens(accessToken: string, refreshToken: string): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.accessToken, accessToken);
-    localStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
+    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
   } catch (error) {
-    logError('setAuthTokens', 'Failed to store tokens', isDevelopment);
+    logError('setAuthTokens', 'Failed to store tokens', IS_DEVELOPMENT);
     throw new Error('Failed to save authentication tokens');
   }
 }
@@ -40,10 +40,10 @@ export function setAuthTokens(accessToken: string, refreshToken: string): void {
  */
 export function clearAuthTokens(): void {
   try {
-    localStorage.removeItem(STORAGE_KEYS.accessToken);
-    localStorage.removeItem(STORAGE_KEYS.refreshToken);
+    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
   } catch (error) {
-    logError('clearAuthTokens', 'Failed to clear tokens', isDevelopment);
+    logError('clearAuthTokens', 'Failed to clear tokens', IS_DEVELOPMENT);
   }
 }
 
@@ -99,6 +99,35 @@ export interface PasswordResetResponse {
   message: string;
 }
 
+export interface UploadDocumentResponse {
+  success: boolean;
+  document?: {
+    id: string;
+    file_name: string;
+    [key: string]: unknown;
+  };
+  message?: string;
+}
+
+export interface ChatResponse {
+  success: boolean;
+  answer?: string;
+  sources?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface SearchResponse {
+  success: boolean;
+  results?: unknown[];
+  [key: string]: unknown;
+}
+
+interface ErrorPayload {
+  code?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
 // =====================
 // Authentication APIs
 // =====================
@@ -109,7 +138,7 @@ export interface PasswordResetResponse {
  */
 export async function signUp(email: string, password: string): Promise<AuthResponse> {
   try {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/signup`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -134,7 +163,7 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
 
     return data;
   } catch (error) {
-    logError('signUp', error, isDevelopment);
+    logError('signUp', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -145,7 +174,7 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
  */
 export async function signIn(email: string, password: string): Promise<AuthResponse> {
   try {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/login`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -170,7 +199,7 @@ export async function signIn(email: string, password: string): Promise<AuthRespo
 
     return data;
   } catch (error) {
-    logError('signIn', error, isDevelopment);
+    logError('signIn', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -181,7 +210,7 @@ export async function signIn(email: string, password: string): Promise<AuthRespo
  */
 export async function signOut(): Promise<void> {
   try {
-    await fetch(`${API_CONFIG.baseUrl}/api/logout`, {
+    await fetch(`${API_CONFIG.BASE_URL}/api/logout`, {
       method: "POST",
       headers: getAuthHeaders(),
     }).catch(() => {
@@ -198,7 +227,7 @@ export async function signOut(): Promise<void> {
  */
 export async function getCurrentUser(): Promise<AuthResponse> {
   try {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/me`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/me`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -213,7 +242,7 @@ export async function getCurrentUser(): Promise<AuthResponse> {
 
     return response.json() as Promise<AuthResponse>;
   } catch (error) {
-    logError('getCurrentUser', error, isDevelopment);
+    logError('getCurrentUser', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -224,13 +253,13 @@ export async function getCurrentUser(): Promise<AuthResponse> {
  */
 export async function resetPasswordRequest(email: string): Promise<PasswordResetResponse> {
   try {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/forgot-password`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/forgot-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
 
-    let data: any;
+    let data: PasswordResetResponse;
     try {
       data = await response.json();
     } catch {
@@ -244,7 +273,7 @@ export async function resetPasswordRequest(email: string): Promise<PasswordReset
 
     return data;
   } catch (error) {
-    logError('resetPasswordRequest', error, isDevelopment);
+    logError('resetPasswordRequest', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -255,7 +284,7 @@ export async function resetPasswordRequest(email: string): Promise<PasswordReset
  */
 export async function resetPassword(accessToken: string, newPassword: string): Promise<PasswordResetResponse> {
   try {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/reset-password`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/reset-password`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -264,7 +293,7 @@ export async function resetPassword(accessToken: string, newPassword: string): P
       body: JSON.stringify({ password: newPassword }),
     });
 
-    let data: any;
+    let data: PasswordResetResponse;
     try {
       data = await response.json();
     } catch {
@@ -278,7 +307,7 @@ export async function resetPassword(accessToken: string, newPassword: string): P
 
     return data;
   } catch (error) {
-    logError('resetPassword', error, isDevelopment);
+    logError('resetPassword', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -319,7 +348,7 @@ export interface SearchQuery {
  */
 export async function fetchUserDocuments(): Promise<UserDocumentsResponse> {
   try {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/documents`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/documents`, {
       headers: getAuthHeaders(),
     });
 
@@ -333,7 +362,7 @@ export async function fetchUserDocuments(): Promise<UserDocumentsResponse> {
 
     return response.json() as Promise<UserDocumentsResponse>;
   } catch (error) {
-    logError('fetchUserDocuments', error, isDevelopment);
+    logError('fetchUserDocuments', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -342,7 +371,7 @@ export async function fetchUserDocuments(): Promise<UserDocumentsResponse> {
  * Uploads a document
  * POST /api/upload
  */
-export async function uploadDocument(file: File): Promise<any> {
+export async function uploadDocument(file: File): Promise<UploadDocumentResponse> {
   try {
     const formData = new FormData();
     formData.append("file", file);
@@ -356,13 +385,13 @@ export async function uploadDocument(file: File): Promise<any> {
       'Authorization': `Bearer ${token}`,
     };
 
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/upload`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/upload`, {
       method: "POST",
       headers,
       body: formData,
     });
 
-    let errorPayload: any = null;
+    let errorPayload: ErrorPayload | null = null;
     if (!response.ok) {
       try {
         errorPayload = await response.json();
@@ -389,7 +418,7 @@ export async function uploadDocument(file: File): Promise<any> {
 
     return response.json();
   } catch (error) {
-    logError('uploadDocument', error, isDevelopment);
+    logError('uploadDocument', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -398,9 +427,9 @@ export async function uploadDocument(file: File): Promise<any> {
  * Sends a chat query
  * POST /api/chat
  */
-export async function sendChatQuery(query: string, limit: number = 5): Promise<any> {
+export async function sendChatQuery(query: string, limit: number = 5): Promise<ChatResponse> {
   try {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/chat`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat`, {
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({ question: query, topK: limit }),
@@ -416,7 +445,7 @@ export async function sendChatQuery(query: string, limit: number = 5): Promise<a
 
     return response.json();
   } catch (error) {
-    logError('sendChatQuery', error, isDevelopment);
+    logError('sendChatQuery', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -429,9 +458,9 @@ export async function searchDocuments(
   query: string,
   topK: number = 8,
   minSimilarity: number = 0.2
-): Promise<any> {
+): Promise<SearchResponse> {
   try {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/search`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/search`, {
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({ query, topK, minSimilarity }),
@@ -447,7 +476,7 @@ export async function searchDocuments(
 
     return response.json();
   } catch (error) {
-    logError('searchDocuments', error, isDevelopment);
+    logError('searchDocuments', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -466,7 +495,7 @@ export async function getUploadStatus(): Promise<{
   };
 }> {
   try {
-    const response = await fetch(`${API_CONFIG.baseUrl}/api/upload/status`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/upload/status`, {
       headers: getAuthHeaders(),
     });
 
@@ -480,88 +509,8 @@ export async function getUploadStatus(): Promise<{
 
     return response.json();
   } catch (error) {
-    logError('getUploadStatus', error, isDevelopment);
+    logError('getUploadStatus', error, IS_DEVELOPMENT);
     throw error;
   }
 }
 
-// =====================
-// Generic API Client (deprecated - use api.ts instead)
-// =====================
-// NOTE: This is kept for backward compatibility. New code should import from api.ts
-
-interface RequestOptions extends RequestInit {
-  body?: any;
-}
-
-class ApiClient {
-  private baseUrl: string;
-
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
-  }
-
-  async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const token = getAuthToken();
-
-    const config: RequestInit = {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-        ...options.headers,
-      },
-    };
-
-    try {
-      const response = await fetch(url, config);
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        if (!response.ok) {
-          throw new ApiError(response.status, `Request failed with status ${response.status}`);
-        }
-        return {} as T;
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new ApiError(401, 'Session expired. Please login again.');
-        }
-        throw new ApiError(response.status, data.message || `Request failed with status ${response.status}`);
-      }
-
-      return data;
-    } catch (error) {
-      logError('ApiClient.request', error, isDevelopment);
-      throw error;
-    }
-  }
-
-  get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'GET' });
-  }
-
-  post<T>(endpoint: string, body?: any): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  }
-
-  put<T>(endpoint: string, body?: any): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: 'PUT',
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  }
-
-  delete<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'DELETE' });
-  }
-}
-
-export const api = new ApiClient(API_CONFIG.baseUrl);

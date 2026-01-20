@@ -3,7 +3,7 @@
  * SOLID Principle: Single Responsibility - request handling isolated
  */
 
-import { API_CONFIG, isDevelopment } from '@/shared/constants/config';
+import { API_CONFIG, IS_DEVELOPMENT } from '@/shared/constants/config';
 import { ApiError, logError } from '@/shared/lib/errorHandler';
 
 /**
@@ -19,7 +19,7 @@ export interface RetryOptions {
 /**
  * Creates an abort signal with timeout
  */
-export function createTimeoutSignal(timeoutMs: number = API_CONFIG.timeout): AbortSignal {
+export function createTimeoutSignal(timeoutMs: number = API_CONFIG.TIMEOUT): AbortSignal {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -36,7 +36,7 @@ export function createTimeoutSignal(timeoutMs: number = API_CONFIG.timeout): Abo
  */
 export function calculateBackoffDelay(
   attempt: number,
-  initialDelay: number = API_CONFIG.retryDelay,
+  initialDelay: number = API_CONFIG.RETRY_DELAY,
   maxDelay: number = 30000,
   multiplier: number = 2,
 ): number {
@@ -63,9 +63,9 @@ export async function fetchWithRetry<T>(
   options: RequestInit & { timeout?: number } = {},
   retryOptions: RetryOptions = {},
 ): Promise<T> {
-  const maxAttempts = retryOptions.maxAttempts ?? API_CONFIG.retryAttempts;
-  const initialDelay = retryOptions.initialDelay ?? API_CONFIG.retryDelay;
-  const timeout = options.timeout ?? API_CONFIG.timeout;
+  const maxAttempts = retryOptions.maxAttempts ?? API_CONFIG.RETRY_ATTEMPTS;
+  const initialDelay = retryOptions.initialDelay ?? API_CONFIG.RETRY_DELAY;
+  const timeout = options.timeout ?? API_CONFIG.TIMEOUT;
 
   let lastError: Error | null = null;
 
@@ -96,7 +96,7 @@ export async function fetchWithRetry<T>(
 
         // Retry with backoff
         const delay = calculateBackoffDelay(attempt, initialDelay);
-        logError(`API Request (attempt ${attempt + 1})`, `Retrying after ${delay}ms`, isDevelopment);
+        logError(`API Request (attempt ${attempt + 1})`, `Retrying after ${delay}ms`, IS_DEVELOPMENT);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -113,7 +113,7 @@ export async function fetchWithRetry<T>(
       // Check if we should retry
       if (!(error instanceof ApiError) && attempt < maxAttempts - 1) {
         const delay = calculateBackoffDelay(attempt, initialDelay);
-        logError(`API Request (attempt ${attempt + 1})`, `Retrying after ${delay}ms`, isDevelopment);
+        logError(`API Request (attempt ${attempt + 1})`, `Retrying after ${delay}ms`, IS_DEVELOPMENT);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -131,11 +131,11 @@ export async function fetchWithRetry<T>(
 export function logRequestResponse(
   method: string,
   url: string,
-  request?: any,
-  response?: any,
+  request?: unknown,
+  response?: unknown,
   duration?: number,
 ): void {
-  if (!isDevelopment) return;
+  if (!IS_DEVELOPMENT) return;
 
   const style = 'color: #0066cc; font-weight: bold';
   console.log(
@@ -151,12 +151,3 @@ export function logRequestResponse(
   }
 }
 
-/**
- * Validates response data (basic check)
- */
-export function validateResponse<T>(data: any): T {
-  if (data === null || data === undefined) {
-    throw new Error('Response data is null or undefined');
-  }
-  return data as T;
-}
