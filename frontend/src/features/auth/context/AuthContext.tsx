@@ -34,9 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.user) {
         setUser(response.user);
       }
-    } catch (error) {
+    } catch {
       // Not authenticated - this is fine
-      console.log("Not authenticated");
     } finally {
       setIsLoading(false);
     }
@@ -54,17 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (response.user) {
       setUser(response.user);
     }
-    // Note: if needs_email_confirm is true, user might need to verify email
-    if (response.needs_email_confirm) {
-      console.log("Email confirmation required");
-    }
   };
 
   const logout = async () => {
     try {
       await signOut();
-    } catch (error) {
-      console.error("Logout error:", error);
+    } catch {
+      // Logout failed, but we still clear user state
     } finally {
       setUser(null);
     }

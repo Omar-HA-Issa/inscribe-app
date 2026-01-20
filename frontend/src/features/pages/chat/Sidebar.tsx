@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react";
 import {fetchUserDocuments, uploadDocument} from "@/shared/lib/apiClient.ts";
 import {CheckSquare, ChevronLeft, ChevronRight, Search, Square, Trash2, Upload} from "lucide-react";
+import { API_CONFIG, STORAGE_KEYS } from "@/shared/constants/config";
 
 type Document = {
   id: string;
@@ -31,8 +32,8 @@ export function Sidebar({ selectedDocs, setSelectedDocs }: SidebarProps) {
       setIsLoading(true);
       const data = await fetchUserDocuments();
       setDocuments(data.documents || []);
-    } catch (err) {
-      console.error("Failed to load documents:", err);
+    } catch {
+      // Failed to load documents
     } finally {
       setIsLoading(false);
     }
@@ -46,9 +47,7 @@ export function Sidebar({ selectedDocs, setSelectedDocs }: SidebarProps) {
     try {
       await uploadDocument(file);
       await loadDocuments();
-      console.log('✅ Upload successful!');
     } catch (err) {
-      console.error("Upload failed:", err);
       alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsUploading(false);
@@ -71,11 +70,11 @@ export function Sidebar({ selectedDocs, setSelectedDocs }: SidebarProps) {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/documents/${docId}`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/documents/${docId}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          'Authorization': `Bearer ${localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN)}`
         }
       });
 
@@ -85,8 +84,7 @@ export function Sidebar({ selectedDocs, setSelectedDocs }: SidebarProps) {
       } else {
         alert('Failed to delete document');
       }
-    } catch (err) {
-      console.error('Delete failed:', err);
+    } catch {
       alert('Failed to delete document');
     }
   };

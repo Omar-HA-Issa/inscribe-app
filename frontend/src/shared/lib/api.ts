@@ -5,7 +5,7 @@
  * - Dependency Inversion: Uses injected configuration
  */
 
-import { API_CONFIG, STORAGE_KEYS, isDevelopment } from '@/shared/constants/config';
+import { API_CONFIG, STORAGE_KEYS, IS_DEVELOPMENT } from '@/shared/constants/config';
 import { ApiError, logError } from '@/shared/lib/errorHandler';
 import { fetchWithRetry, logRequestResponse, createTimeoutSignal } from '@/shared/lib/requestUtils';
 
@@ -30,11 +30,11 @@ class ApiClient {
    */
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const timeout = options.timeout ?? API_CONFIG.timeout;
+    const timeout = options.timeout ?? API_CONFIG.TIMEOUT;
     const shouldRetry = options.retry !== false;
 
     // Get token from localStorage
-    const token = localStorage.getItem(STORAGE_KEYS.accessToken);
+    const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
     const config: RequestInit = {
       ...options,
@@ -59,7 +59,7 @@ class ApiClient {
       return data;
     } catch (error) {
       const duration = performance.now() - startTime;
-      logError(`API ${config.method || 'GET'} ${endpoint}`, error, isDevelopment);
+      logError(`API ${config.method || 'GET'} ${endpoint}`, error, IS_DEVELOPMENT);
 
       // Handle and re-throw with context
       if (error instanceof ApiError) {
@@ -151,5 +151,5 @@ class ApiClient {
   }
 }
 
-export const api = new ApiClient(API_CONFIG.baseUrl);
+export const api = new ApiClient(API_CONFIG.BASE_URL);
 export { API_CONFIG };

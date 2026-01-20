@@ -5,7 +5,7 @@
 
 import { api } from './api';
 import { ApiError, logError } from '@/shared/lib/errorHandler';
-import { isDevelopment } from '@/shared/constants/config';
+import { IS_DEVELOPMENT } from '@/shared/constants/config';
 
 // =====================
 // Document Types
@@ -192,7 +192,7 @@ export async function getDocumentReport(documentId: string): Promise<DocumentRep
 
     return response;
   } catch (error) {
-    logError('getDocumentReport', error, isDevelopment);
+    logError('getDocumentReport', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -218,7 +218,7 @@ export async function getDocumentSummary(documentId: string): Promise<SummaryRes
 
     return response.summary;
   } catch (error) {
-    logError('getDocumentSummary', error, isDevelopment);
+    logError('getDocumentSummary', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -243,7 +243,7 @@ export async function validateDocument(documentId: string): Promise<DocumentVali
 
     return response;
   } catch (error) {
-    logError('validateDocument', error, isDevelopment);
+    logError('validateDocument', error, IS_DEVELOPMENT);
     throw error;
   }
 }
@@ -269,7 +269,7 @@ export async function regenerateDocumentInsights(documentId: string): Promise<In
 
     return response.insights;
   } catch (error) {
-    logError('regenerateDocumentInsights', error, isDevelopment);
+    logError('regenerateDocumentInsights', error, IS_DEVELOPMENT);
     throw error;
   }
 }

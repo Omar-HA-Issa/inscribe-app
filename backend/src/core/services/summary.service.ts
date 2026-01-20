@@ -1,10 +1,6 @@
-import OpenAI from "openai";
 import { adminClient } from "../../core/clients/supabaseClient";
 import { logger } from "../../shared/utils/logger";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAIClient, LLM_MODELS } from "./llm.service";
 
 interface SummaryResult {
   overview: string;
@@ -105,8 +101,9 @@ Respond in JSON format:
   "keywords": ["keyword1", "keyword2", "..."]
 }`;
 
+    const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: LLM_MODELS.FAST,
       messages: [
         {
           role: "system",

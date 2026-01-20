@@ -41,10 +41,8 @@ export const chatApi = {
     }
 
     if (selectedDocumentIds && selectedDocumentIds.length > 0) {
-      body.selectedDocumentIds = selectedDocumentIds; // ← Make sure this is here!
+      body.selectedDocumentIds = selectedDocumentIds;
     }
-
-    console.log('📤 Frontend sending:', JSON.stringify(body)); // ← Add this
 
     return api.request<ChatResponse>('/api/chat', {
       method: 'POST',

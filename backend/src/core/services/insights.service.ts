@@ -1,15 +1,6 @@
-import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
 import { logger } from "../../shared/utils/logger";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { adminClient } from "../clients/supabaseClient";
+import { getOpenAIClient, LLM_MODELS } from "./llm.service";
 
 export type InsightCategory = "pattern" | "anomaly" | "opportunity" | "risk";
 
@@ -134,8 +125,9 @@ Return ONLY valid JSON in this structure:
 ]
 `;
 
+  const openai = getOpenAIClient();
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: LLM_MODELS.ADVANCED,
     messages: [
       {
         role: "system",
@@ -200,8 +192,9 @@ Return ONLY valid JSON in this structure:
 ]
 `;
 
+  const openai = getOpenAIClient();
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: LLM_MODELS.ADVANCED,
     messages: [
       {
         role: "system",
@@ -229,7 +222,7 @@ export async function generateDocumentInsights(
   forceRegenerate = false
 ): Promise<InsightResponse> {
   // 1) Try cache (unless forcing regeneration)
-  const { data: cached, error: cacheError } = await supabase
+  const { data: cached, error: cacheError } = await adminClient()
     .from("document_insights")
     .select("insights, created_at")
     .eq("document_id", documentId)
@@ -263,7 +256,7 @@ export async function generateDocumentInsights(
   }
 
   // 2) Validate document ownership
-  const { data: doc, error: docError } = await supabase
+  const { data: doc, error: docError } = await adminClient()
     .from("documents")
     .select("id, file_name, user_id")
     .eq("id", documentId)
@@ -277,7 +270,7 @@ export async function generateDocumentInsights(
 
   // 3) Fetch ALL chunks
   logger.info(`📄 Fetching all chunks for document ${documentId}...`);
-  const { data: chunks, error: chunksError } = await supabase
+  const { data: chunks, error: chunksError } = await adminClient()
     .from("document_chunks")
     .select("content, chunk_index")
     .eq("document_id", documentId)
@@ -306,7 +299,7 @@ export async function generateDocumentInsights(
   logger.info(`✨ Generated ${insights.length} insights`);
 
   // 5) Cache insights in DB
-  const { error: upsertError } = await supabase
+  const { error: upsertError } = await adminClient()
     .from("document_insights")
     .upsert(
       {
@@ -349,7 +342,7 @@ export async function generateCrossDocumentInsights(
     };
   }
 
-  const { data: docs, error: docsError } = await supabase
+  const { data: docs, error: docsError } = await adminClient()
     .from("documents")
     .select("id, file_name, metadata")
     .in("id", documentIds)
@@ -376,7 +369,7 @@ export async function generateCrossDocumentInsights(
   }[] = [];
 
   for (const doc of docs) {
-    const { data: summaryDoc, error: summaryError } = await supabase
+    const { data: summaryDoc, error: summaryError } = await adminClient()
       .from("documents")
       .select("summary")
       .eq("id", doc.id)
