@@ -4,6 +4,7 @@ import { logger } from "./shared/utils/logger";
 
 const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, () => {
-  logger.info(`Server running on http://localhost:${PORT}`);
+// Bind to 0.0.0.0 for container environments (Railway, Docker)
+app.listen(Number(PORT), '0.0.0.0', () => {
+  logger.info(`Server running on port ${PORT}`);
 });
