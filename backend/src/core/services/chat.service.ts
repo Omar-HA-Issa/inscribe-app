@@ -3,6 +3,18 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { SearchService } from './search.service';
 import { logger } from '../../shared/utils/logger';
 
+// OpenAI API response type
+interface OpenAIResponse {
+  choices: Array<{
+    message: {
+      content: string;
+    };
+  }>;
+  error?: {
+    message: string;
+  };
+}
+
 /**
  * Legacy ChatService wrapper for backward compatibility
  * This maintains the old static method API while delegating to the new services
@@ -134,7 +146,7 @@ export class ChatService {
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as OpenAIResponse;
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${data.error?.message}`);
     }
@@ -166,7 +178,7 @@ export class ChatService {
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as OpenAIResponse;
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${data.error?.message}`);
     }

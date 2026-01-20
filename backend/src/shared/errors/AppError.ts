@@ -3,14 +3,22 @@
  */
 export class AppError extends Error {
   public readonly isOperational: boolean;
+  public readonly code?: string;
 
   constructor(
     message: string,
     public readonly statusCode: number = 500,
-    isOperational = true
+    isOperationalOrCode: boolean | string = true
   ) {
     super(message);
-    this.isOperational = isOperational;
+
+    // Handle both boolean (isOperational) and string (error code) as third param
+    if (typeof isOperationalOrCode === 'string') {
+      this.isOperational = true;
+      this.code = isOperationalOrCode;
+    } else {
+      this.isOperational = isOperationalOrCode;
+    }
 
     Object.setPrototypeOf(this, AppError.prototype);
     Error.captureStackTrace(this, this.constructor);
@@ -24,6 +32,7 @@ export class AppError extends Error {
       success: false,
       error: this.message,
       statusCode: this.statusCode,
+      ...(this.code && { code: this.code }),
     };
   }
 }
