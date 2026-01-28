@@ -9,7 +9,7 @@ import { UseCasesSection } from "../components/UseCasesSection";
 import { TestimonialsSection } from "../components/TestimonialsSection";
 import { PricingComingSoonSection } from "../components/PricingComingSoonSection";
 import { FinalCTASection } from "../components/FinalCTASection";
-import { Footer } from "../components/Footer";
+import { Footer } from "@/shared/components/Footer";
 import { useNavigate } from "react-router-dom";
 
 const Landing = () => {
