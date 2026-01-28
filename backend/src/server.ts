@@ -40,10 +40,12 @@ app.use(responseFormatterMiddleware);
 
 // Health check endpoints
 app.get("/", (req, res) => {
+  logger.info("Root endpoint hit");
   res.json({ status: "ok" });
 });
 
 app.get("/health", (req, res) => {
+  logger.info("Health endpoint hit");
   res.json({
     status: "ok",
     message: "Inscribe Backend API is running",
